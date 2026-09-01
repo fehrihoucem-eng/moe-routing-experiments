@@ -82,7 +82,8 @@ traces, and a prompt routes identically whether it runs alone or as #85 of 100 â
 
 ```
 routing.parquet   prompt_id, phase, token_id, layer, expert_id, gate
-prompts.parquet   prompt_id, key, n_prompt_tokens, n_decode_tokens, source
+prompts.parquet   prompt_id, key, category, n_prompt_tokens, n_decode_tokens,
+                  source, text, response
 meta.json         n_layers, n_experts, top_k, n_rows, n_prompts, traces
 ```
 
@@ -147,10 +148,12 @@ src/routetrace/
   store.py       parquet store
   tensor.py      load_X, COO, to_torch, prompt_slices, describe
   transforms.py  transforms of X
-  capture.py     SERVE-mode driver
-tests/           18 tests; fixtures/serve3.trace is a real 3-prompt capture
+  capture.py     SERVE-mode driver + chat template
+tests/           23 tests; fixtures/serve3.trace is a real 3-prompt capture
 patches/         the colibri engine change
-data/            traces and stores (gitignored, except test fixtures)
+prompts/         corpus_v1.json
+scripts/         capture_corpus.py
+data/            traces and stores (gitignored; regenerate with capture_corpus.py)
 ```
 
 ## Setup
