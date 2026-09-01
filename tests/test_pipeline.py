@@ -15,8 +15,10 @@ from routetrace import (
     build_store,
     load_X,
     parse_trace,
+    make_split,
     prompt_ids_for,
     read_prompts,
+    read_split,
 )
 from routetrace.parse import TraceFormatError
 from routetrace.tensor import prompt_slices
@@ -140,7 +142,7 @@ def test_real_trace_shapes_and_invariants(tmp_path):
     assert meta["n_experts"] == 256
     assert meta["top_k"] == 8 and meta["top_k_min"] == 8
 
-    X, index = load_X(tmp_path / "store", split=DECODE)
+    X, index = load_X(tmp_path / "store", phase=DECODE)
     n_tokens = X.shape[0]
     assert X.shape == (n_tokens, 40, 256)
     assert X.dtype == np.float32
@@ -163,9 +165,9 @@ def test_real_trace_shapes_and_invariants(tmp_path):
 @requires_real
 def test_real_trace_prefill_and_decode_are_disjoint(tmp_path):
     build_store([REAL_TRACE], tmp_path / "store")
-    Xd, _ = load_X(tmp_path / "store", split=DECODE)
-    Xp, _ = load_X(tmp_path / "store", split=PREFILL)
-    Xa, _ = load_X(tmp_path / "store", split=None)
+    Xd, _ = load_X(tmp_path / "store", phase=DECODE)
+    Xp, _ = load_X(tmp_path / "store", phase=PREFILL)
+    Xa, _ = load_X(tmp_path / "store", phase=None)
     # the smoke capture is 18 prefill rows and 31 decode steps
     assert Xp.shape[0] == 18
     assert Xd.shape[0] == 31
@@ -176,8 +178,8 @@ def test_real_trace_prefill_and_decode_are_disjoint(tmp_path):
 @requires_real
 def test_sparse_matches_dense(tmp_path):
     build_store([REAL_TRACE], tmp_path / "store")
-    X, _ = load_X(tmp_path / "store", split=DECODE)
-    coo, _ = load_X(tmp_path / "store", split=DECODE, sparse=True)
+    X, _ = load_X(tmp_path / "store", phase=DECODE)
+    coo, _ = load_X(tmp_path / "store", phase=DECODE, sparse=True)
     assert coo.nnz == 31 * 40 * 8
     assert np.array_equal(coo.to_dense(), X)
 
@@ -185,7 +187,7 @@ def test_sparse_matches_dense(tmp_path):
 @requires_real
 def test_prompt_slices_cover_the_token_axis(tmp_path):
     build_store([REAL_TRACE], tmp_path / "store")
-    X, index = load_X(tmp_path / "store", split=DECODE)
+    X, index = load_X(tmp_path / "store", phase=DECODE)
     slices = prompt_slices(index)
     assert sum(s.stop - s.start for s in slices.values()) == X.shape[0]
 
@@ -248,7 +250,7 @@ def test_serve_capture_splits_three_prompts(tmp_path):
     assert meta["n_prompts"] == 3
     assert meta["top_k"] == 8 and meta["top_k_min"] == 8
 
-    X, index = load_X(tmp_path / "store", split=DECODE)
+    X, index = load_X(tmp_path / "store", phase=DECODE)
     assert X.shape == (45, 40, 256)
     assert (X != 0).sum(axis=-1).min() == 8
     assert (X != 0).sum(axis=-1).max() == 8
@@ -261,7 +263,7 @@ def test_serve_capture_splits_three_prompts(tmp_path):
     # token_id restarts per prompt
     assert list(index["token_id"][slices[1]]) == list(range(15))
 
-    Xp, _ = load_X(tmp_path / "store", split=PREFILL)
+    Xp, _ = load_X(tmp_path / "store", phase=PREFILL)
     assert Xp.shape[0] == 7 + 5 + 3
 
 
@@ -269,7 +271,7 @@ def test_serve_capture_splits_three_prompts(tmp_path):
 def test_both_phases_do_not_collide(tmp_path):
     """prefill token 0 and decode token 0 of one prompt are distinct slices."""
     build_store([SERVE_TRACE], tmp_path / "store")
-    X, index = load_X(tmp_path / "store", split=None)
+    X, index = load_X(tmp_path / "store", phase=None)
     assert X.shape[0] == 45 + 15
     both = index[index["prompt_id"] == 0]
     assert set(both["phase"]) == {PREFILL, DECODE}
@@ -280,7 +282,7 @@ def test_both_phases_do_not_collide(tmp_path):
 def test_two_files_concatenate_without_id_collisions(tmp_path):
     meta = build_store([SERVE_TRACE, REAL_TRACE], tmp_path / "store")
     assert meta["n_prompts"] == 4  # 3 from serve + 1 markerless smoke
-    X, index = load_X(tmp_path / "store", split=DECODE)
+    X, index = load_X(tmp_path / "store", phase=DECODE)
     assert sorted(set(index["prompt_id"])) == [0, 1, 2, 3]
     assert X.shape[0] == 45 + 31
 
@@ -327,12 +329,12 @@ def test_load_X_filters_by_category(tmp_path):
 
     assert prompt_ids_for(tmp_path / "store", "coding") == [0, 2]
 
-    X, index = load_X(tmp_path / "store", split=DECODE, categories="coding")
+    X, index = load_X(tmp_path / "store", phase=DECODE, categories="coding")
     assert sorted(set(index["prompt_id"])) == [0, 2]
     assert X.shape[0] == 4  # 2 prompts x 2 decode steps
 
     both, _ = load_X(
-        tmp_path / "store", split=DECODE, categories=["coding", "math_reasoning"]
+        tmp_path / "store", phase=DECODE, categories=["coding", "math_reasoning"]
     )
     assert both.shape[0] == 6
 
@@ -341,7 +343,7 @@ def test_categories_and_prompts_intersect(tmp_path):
     trace = _mini_trace_and_manifest(tmp_path, ["coding", "math_reasoning", "coding"])
     build_store([trace], tmp_path / "store")
     _, index = load_X(
-        tmp_path / "store", split=DECODE, categories="coding", prompts=[2, 1]
+        tmp_path / "store", phase=DECODE, categories="coding", prompts=[2, 1]
     )
     assert sorted(set(index["prompt_id"])) == [2]
 
@@ -366,3 +368,87 @@ def test_render_chat_matches_the_engine_template():
     assert not off.endswith("assistant\n") and not on.endswith("assistant\n")
     sys_ = render_chat("hi", system="be terse")
     assert sys_.startswith("<|im_start|>system\nbe terse<|im_end|>\n")
+
+
+# ---------------------------------------------------------------- train / test
+
+
+def _cat_store(tmp_path, cats):
+    trace = _mini_trace_and_manifest(tmp_path, cats)
+    build_store([trace], tmp_path / "store")
+    return tmp_path / "store"
+
+
+def test_split_is_stratified_and_exhaustive(tmp_path):
+    cats = ["coding"] * 10 + ["math_reasoning"] * 10
+    store = _cat_store(tmp_path, cats)
+    sp = make_split(store, test_per_category=2, seed=0)
+
+    assert sp["n_train"] == 16 and sp["n_test"] == 4
+    for cat, d in sp["by_category"].items():
+        assert len(d["test"]) == 2, cat
+        assert len(d["train"]) == 8, cat
+    # every prompt lands on exactly one side
+    assert set(sp["train"]) | set(sp["test"]) == set(range(20))
+    assert not set(sp["train"]) & set(sp["test"])
+
+
+def test_split_is_deterministic_in_seed(tmp_path):
+    cats = ["coding"] * 10 + ["math_reasoning"] * 10
+    store = _cat_store(tmp_path, cats)
+    a = make_split(store, test_per_category=2, seed=0, overwrite=True)
+    b = make_split(store, test_per_category=2, seed=0, overwrite=True)
+    c = make_split(store, test_per_category=2, seed=1, overwrite=True)
+    assert a["test"] == b["test"]
+    assert a["test"] != c["test"]
+
+
+def test_split_will_not_silently_overwrite(tmp_path):
+    store = _cat_store(tmp_path, ["coding"] * 4)
+    make_split(store, test_per_category=1, seed=0)
+    with pytest.raises(FileExistsError):
+        make_split(store, test_per_category=1, seed=0)
+
+
+def test_read_split_without_one_is_an_error(tmp_path):
+    store = _cat_store(tmp_path, ["coding"] * 4)
+    with pytest.raises(FileNotFoundError, match="make_split"):
+        read_split(store)
+
+
+def test_split_larger_than_category_is_rejected(tmp_path):
+    store = _cat_store(tmp_path, ["coding"] * 3)
+    with pytest.raises(ValueError, match="cannot hold out"):
+        make_split(store, test_per_category=4, seed=0)
+
+
+def test_load_X_by_split_does_not_leak(tmp_path):
+    cats = ["coding"] * 10 + ["math_reasoning"] * 10
+    store = _cat_store(tmp_path, cats)
+    sp = make_split(store, test_per_category=2, seed=0)
+
+    _, itr = load_X(store, phase=DECODE, split="train")
+    _, ite = load_X(store, phase=DECODE, split="test")
+    train_ids = set(itr["prompt_id"].tolist())
+    test_ids = set(ite["prompt_id"].tolist())
+
+    assert train_ids == set(sp["train"])
+    assert test_ids == set(sp["test"])
+    # the whole point: no prompt contributes tokens to both sides
+    assert not train_ids & test_ids
+
+
+def test_split_and_category_intersect(tmp_path):
+    cats = ["coding"] * 10 + ["math_reasoning"] * 10
+    store = _cat_store(tmp_path, cats)
+    make_split(store, test_per_category=2, seed=0)
+    _, idx = load_X(store, phase=DECODE, split="test", categories="coding")
+    ids = set(idx["prompt_id"].tolist())
+    assert len(ids) == 2 and all(i < 10 for i in ids)
+
+
+def test_passing_a_phase_as_split_is_rejected(tmp_path):
+    """split= used to mean the phase; that mistake must be loud, not silent."""
+    store = _cat_store(tmp_path, ["coding"] * 4)
+    with pytest.raises(ValueError, match="is a phase; pass phase="):
+        load_X(store, split="decode")

@@ -59,7 +59,8 @@ def prompt_ids_for(store_dir: str | Path, categories: list[str] | str) -> list[i
 
 def load_X(
     store_dir: str | Path,
-    split: str | None = DECODE,
+    phase: str | None = DECODE,
+    split: str | None = None,
     prompts: list[int] | None = None,
     categories: list[str] | str | None = None,
     sparse: bool = False,
@@ -67,9 +68,10 @@ def load_X(
 ):
     """Load X and its token index.
 
-    ``split`` filters the phase and defaults to ``"decode"``; pass ``None`` to
-    keep both phases. ``prompts`` restricts to a list of prompt ids, and
-    ``categories`` to one or more corpus categories; giving both intersects them.
+    ``phase`` selects prefill or decode and defaults to ``"decode"``; pass
+    ``None`` to keep both. ``split`` selects ``"train"`` or ``"test"`` from the
+    store's saved assignment. ``prompts`` restricts to explicit prompt ids, and
+    ``categories`` to corpus categories. Every filter given is intersected.
 
     Returns ``(X, index)``. ``X`` is ``[tokens, layers, n_experts]`` dense, or a
     :class:`COO` when ``sparse=True``. ``index`` is a structured array with
@@ -79,21 +81,38 @@ def load_X(
     meta = read_meta(store_dir)
     table = read_routing(store_dir)
 
+    # `split` used to mean the phase. Catch the muscle-memory error loudly
+    # rather than filter on a train/test value that matches no phase and raise
+    # the confusing "no rows" further down.
+    if split in (DECODE, PREFILL):
+        raise ValueError(
+            f"split={split!r} is a phase; pass phase={split!r} instead. "
+            "split= selects 'train' or 'test'."
+        )
+
     if categories is not None:
         by_cat = prompt_ids_for(store_dir, categories)
         prompts = by_cat if prompts is None else sorted(set(prompts) & set(by_cat))
-
     if split is not None:
+        from .splits import prompt_ids_for_split
+
+        by_split = prompt_ids_for_split(store_dir, split)
+        prompts = by_split if prompts is None else sorted(set(prompts) & set(by_split))
+
+    if phase is not None:
         # phase is dictionary-encoded; cast so the comparison is against strings.
-        table = table.filter(pc.equal(table["phase"].cast("string"), split))
+        table = table.filter(pc.equal(table["phase"].cast("string"), phase))
     if prompts is not None:
         table = table.filter(pc.is_in(table["prompt_id"], value_set=pa.array(prompts, pa.int32())))
     if table.num_rows == 0:
-        raise ValueError(f"no rows for split={split!r} prompts={prompts!r}")
+        raise ValueError(
+            f"no rows for phase={phase!r} split={split!r} "
+            f"categories={categories!r} prompts={prompts!r}"
+        )
 
     prompt_id = table["prompt_id"].to_numpy(zero_copy_only=False).astype(np.int64)
     token_id = table["token_id"].to_numpy(zero_copy_only=False).astype(np.int64)
-    phase = np.asarray(table["phase"].cast("string").to_pylist())
+    phase_col = np.asarray(table["phase"].cast("string").to_pylist())
     layer = table["layer"].to_numpy(zero_copy_only=False).astype(np.int64)
     expert = table["expert_id"].to_numpy(zero_copy_only=False).astype(np.int64)
     gate = table["gate"].to_numpy(zero_copy_only=False).astype(dtype)
@@ -105,7 +124,7 @@ def load_X(
     # token_id restarts at 0 for each phase, so (prompt_id, token_id) alone is
     # NOT unique when both phases are loaded -- prefill token 0 and decode token 0
     # of the same prompt would collapse onto one slice of X. Phase joins the key.
-    is_decode = (phase == DECODE).astype(np.int64)
+    is_decode = (phase_col == DECODE).astype(np.int64)
     stride = int(token_id.max()) + 1
     key = (prompt_id * 2 + is_decode) * stride + token_id
     uniq, inverse = np.unique(key, return_inverse=True)

@@ -40,8 +40,8 @@ being free (a 20k-token decode split is ~820 MB dense, ~6.4M nonzeros sparse).
 
 ### Prefill vs decode
 
-Both phases are captured; **every loader defaults to `split="decode"`**. Pass
-`split="prefill"` or `split=None` for the rest.
+Both phases are captured; **every loader defaults to `phase="decode"`**. Pass
+`phase="prefill"` or `phase=None` for the rest.
 
 `token_id` restarts at 0 in each phase, so `(prompt_id, token_id)` is *not*
 unique when both phases are loaded — the token axis keys on
@@ -69,6 +69,31 @@ X, index = load_X("data/stores/corpus_v1", categories=["coding", "math_reasoning
 The full decode split is `[15569, 40, 256]` = **638 MB dense**; use
 `sparse=True` when you want the whole corpus at once.
 
+### Train / test
+
+The split is **by prompt, never by token**: tokens inside one prompt share a
+prefix, a topic and a decode trajectory, so a token-level split would put
+near-duplicate rows on both sides and inflate every held-out score.
+
+```python
+make_split("data/stores/corpus_v1", test_per_category=4, seed=0)  # writes split.json
+X, index = load_X("data/stores/corpus_v1", split="train")   # [12000, 40, 256]
+X, index = load_X("data/stores/corpus_v1", split="test")    # [3569, 40, 256]
+```
+
+`corpus_v1` at `seed=0` is 16 train / 4 test in each of the five categories.
+Note the token shares are *not* 80/20 — decode length varies per prompt, so the
+test side carries 22.9% of decode tokens, ranging 20.0% (`factual_expository`,
+`math_reasoning`) to 28.0% (`structured_extraction`). Stratification is on prompt
+count, which is what makes the units independent; token balance is a consequence.
+
+The assignment is written to `<store>/split.json` rather than recomputed, so two
+experiments that "both used seed 0" stay comparable even if one rebuilt the store
+in between. `make_split` refuses to overwrite without `overwrite=True`.
+
+> `phase=` selects prefill/decode. `split=` selects train/test. Passing
+> `split="decode"` raises rather than silently filtering to nothing.
+
 ### Determinism
 
 `serve_sample()` treats `temp <= 0` as exact argmax. Verified, not assumed:
@@ -85,6 +110,7 @@ routing.parquet   prompt_id, phase, token_id, layer, expert_id, gate
 prompts.parquet   prompt_id, key, category, n_prompt_tokens, n_decode_tokens,
                   source, text, response
 meta.json         n_layers, n_experts, top_k, n_rows, n_prompts, traces
+split.json        seed, test_per_category, train/test prompt ids (make_split)
 ```
 
 One row per selected expert, so a `(token, layer)` contributes exactly `top_k`
@@ -147,9 +173,10 @@ src/routetrace/
   parse.py       trace -> long-form records; phase and token_id assignment
   store.py       parquet store
   tensor.py      load_X, COO, to_torch, prompt_slices, describe
+  splits.py      make_split / read_split: stratified train-test by prompt
   transforms.py  transforms of X
   capture.py     SERVE-mode driver + chat template
-tests/           23 tests; fixtures/serve3.trace is a real 3-prompt capture
+tests/           31 tests; fixtures/serve3.trace is a real 3-prompt capture
 patches/         the colibri engine change
 prompts/         corpus_v1.json
 scripts/         capture_corpus.py
