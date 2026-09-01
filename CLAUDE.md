@@ -7,10 +7,12 @@ owns the capture, the dataset and the analysis — never the engine.
 
 | File | What it holds | When you need it |
 |---|---|---|
+| `docs/queue.md` | What to do next, ordered, with the two constraints that outlive any one item. | **Before proposing an experiment.** Update it when work finishes or is added. |
 | `CONTEXT.md` | The glossary. Opinionated, with `_Avoid_` lists. | Before using any project term. It is a glossary only — put nothing else in it. |
 | `docs/adr/` | Decisions that are hard to reverse, and why. | Before changing how capture or the split works. |
 | `docs/research/moe-expert-specialisation.md` | The MoE routing literature, cited to primary sources, with unverifiable claims flagged. | **Before researching this topic again — it has already been done.** |
 | `docs/results/predictor-coverage.md` | How predictable routing is, and from what. The K-curve, the depth profile, the caveats. | **Before proposing a routing predictor — the four obvious ones are measured.** |
+| `docs/results/temporal-history.md` | How far back routing history reaches: t-1 to t-8, unions, and the depth profile of memory length. | **Before reaching past t-1 — the Lags are measured and they saturate at t-4.** |
 | `README.md` | How to run things. | — |
 
 ## Traps that have already cost time
@@ -52,6 +54,14 @@ why before anything else is.
 with `layer=0` is negative indexing, so it wrapped to the last Layer and returned
 entirely plausible numbers for a cell no cross-layer Predictor can enter.
 `score()` now raises instead; do not remove that guard to "support Layer 0".
+
+**A comparison sets the grid, not the Predictor being scored.** `grid_rows` now
+takes `max_lag`, and it must be the deepest Lag any *rival* reaches. Scoring t-8
+only where 8 predecessors exist while t-1 scores everywhere hands them different
+cells — and not randomly different ones, since the dropped cells are every
+Prompt's opening Tokens, where routing is least predictable. Anything comparing
+Lags must pass the same `max_lag` to every row, and its numbers are then ~0.3pp
+below the `max_lag=1` tables in `predictor-coverage.md`.
 
 **Popularity is a much weaker baseline than it looks.** 9.2% Coverage@8 against
 a 3.1% chance line — routing here is close to balanced, so anything resting on a
@@ -114,12 +124,19 @@ overflows it and returns HTTP 400 with a message that reads backwards. Use
 .venv/bin/python scripts/capture_corpus.py         # re-capture corpus_v1 (~13 min, needs the GPU)
 .venv/bin/python scripts/export_site_data.py       # rebuild site/routing.html
 .venv/bin/python scripts/run_predictors.py         # Predictor K-curves (~6 min, CPU)
+.venv/bin/python scripts/run_history.py            # Lag / union K-curves (~2 min, CPU)
 .venv/bin/python scripts/export_predictors_page.py # rebuild site/predictors.html
+.venv/bin/python scripts/export_history_page.py    # rebuild site/history.html
 ```
 
 **`run_predictors.py` chooses; `confirm_on_test.py` confirms.** Never merge them.
 The first reads train only and sweeps hyperparameters; the second spends the
 held-out split, refuses without `--confirm`, and refuses to run twice. Comparing
 Predictors *is* a modelling decision, so it happens inside train (ADR-0003).
+
+**`corpus_v1`'s test split is spent.** It went on the combined Predictor
+(`docs/results/test-confirmation.json`, 41.6% at K=8). Deleting that file to
+re-run makes test a validation set — a new Predictor, an HMM included, needs a
+`corpus_v2` capture for a clean holdout, not a second run of the script.
 
 `data/` is gitignored and regenerable; everything in it comes from those scripts.

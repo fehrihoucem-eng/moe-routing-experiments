@@ -135,18 +135,28 @@ score(j) = sum_i (g_i ** beta) * P(j|i)
 ```
 
 The headline, at K=8: copying the previous Token's Slots — free, no table —
-gets **38.9%**; the best Predictor of any kind gets **40.6%**. See the results
-document for the K-curve, the depth profile and the caveats.
+gets **38.9%**; the best Predictor of any kind gets **40.6%**, confirmed on the
+held-out Split at **41.6%**. See the results document for the K-curve, the depth
+profile and the caveats.
+
+`docs/results/temporal-history.md` is the second result: how far back that
+history reaches. A **Lag** is how many Tokens back a `token`-Horizon Predictor
+looks, and it is not a Horizon — t-4 was known 200 ms ago, so reaching further
+back is free. Older Tokens add nothing at K=8 and **+8.1pp at K=16**, saturating
+at t-4, and routing memory is longest in the middle of the stack.
 
 ```sh
 .venv/bin/python scripts/run_predictors.py                    # ~6 min, CPU only
+.venv/bin/python scripts/run_history.py                       # ~2 min, CPU only
 .venv/bin/python scripts/export_predictors_page.py            # site/predictors.html
+.venv/bin/python scripts/export_history_page.py               # site/history.html
 .venv/bin/python scripts/confirm_on_test.py --predictor combined --confirm
 ```
 
-`site/predictors.html` is the interactive version — the K-curve table, and
-Coverage against Layer for every Budget. Self-contained, so it opens over
-`file://`. Like `routing.html` it shows **train only**.
+`site/predictors.html` and `site/history.html` are the interactive versions — the
+K-curve tables, Coverage against Layer for every Budget, the Lag decay by depth
+band, and the per-Layer union gain. Self-contained, so they open over `file://`.
+Like `routing.html` they show **train only**.
 
 `run_predictors.py` reads **train only** and chooses; `confirm_on_test.py` spends
 the holdout, refuses to run without `--confirm`, and refuses to run twice.

@@ -9,7 +9,9 @@ Raw numbers: [`predictor-coverage.json`](./predictor-coverage.json), rebuilt by
 Coverage-by-Layer curve at every Budget: `site/predictors.html` (self-contained,
 opens over `file://`; rebuilt by `scripts/export_predictors_page.py`).
 
-**The test Split has not been read.** Everything below is train.
+**The test Split has been spent, once, on the combined Predictor** — see
+[Confirmed on test](#confirmed-on-test). Every other number below is train, and
+every *choice* below was made on train alone.
 
 ## The headline
 
@@ -24,6 +26,46 @@ extra Layer of hindsight buys, and it has to be spent inside 1.25 ms instead of
 
 The caveat that matters: this holds *at K=8*. Give a prefetcher a Budget of 16
 and the gap widens to +13.02pp, because copying can only ever name 8 Slots.
+
+## Confirmed on test
+
+The combination — the Predictor `run_predictors.py` chose, at its tuned
+`alpha = 0, beta = 0.75, w = 0.4` — scored once on the 20 held-out Prompts
+(3,569 Decode Tokens), with tables refitted on all 80 train Prompts. Raw
+numbers: [`test-confirmation.json`](./test-confirmation.json).
+
+| | K=1 | K=3 | K=5 | K=8 | K=12 | K=16 |
+|---|---|---|---|---|---|---|
+| train, 5-fold CV | 8.12 | 20.82 | 30.30 | **40.57** | 49.97 | 56.70 |
+| test, held out | 8.13 | 21.26 | 31.07 | **41.63** | 51.36 | 58.20 |
+| difference | +0.01 | +0.45 | +0.77 | +1.06 | +1.39 | +1.50 |
+
+**It did not fall, and the direction it moved is the expected one.** The
+confirmation fits on all 80 train Prompts where each CV fold fits on 64, so its
+tables carry ~25% more counts; the gap widening monotonically with Budget
+(+0.01pp at K=1 to +1.50pp at K=16) is the signature of a denser table, which
+can only help where the fold-fitted one had thin conditioning rows — out in the
+tail, past the Slots that were already obvious. Read the train CV number as the
+honest estimate and this as the same estimate with more fitting data, not as a
+1pp improvement.
+
+It is also well inside the noise either way. Coverage@8 has a standard deviation
+of 5.90pp *across the 20 test Prompts*, so the standard error on their mean is
+1.32pp and the +1.06pp difference is 0.8 of one. The train folds themselves
+spanned 39.83–41.22.
+
+The depth profile reproduces on held-out Prompts, which is the part worth more
+than the pooled number. Coverage@8 by third: early (1–13) **40.4** against
+train's 39.2, mid (14–26) **38.6** against 38.0, late (27–39) **45.8** against
+44.5 — the same dip in the middle of the stack and the same late-stack peak,
+with Layer 39 at 47.2%. The structure in [Depth](#depth) is not an artefact of
+the Prompts it was found on.
+
+**What this does not confirm.** One Predictor was scored, so the comparisons
+are all still train-only — including the headline one. That free persistence is
+within 1.60pp of this number at K=8 remains a cross-validated claim, not a
+held-out one. Test is now spent for `corpus_v1`; anything further, an HMM
+included, needs a second Corpus rather than a second run of this script.
 
 ## The K-curve
 
@@ -257,15 +299,23 @@ was not asked to generate greedily at `temp=0`.
 
 ## If this is continued
 
-1. **Confirm on test, once.** `scripts/confirm_on_test.py --predictor combined
-   --confirm`. It refuses to run twice.
+The ordered queue is [`docs/queue.md`](../queue.md), which interleaves these
+with what the Lag experiment added. This list is kept as the record of what
+*this* study left open, and its numbering is what the queue's pointers cite.
+
+1. ~~**Confirm on test, once.**~~ Done: 41.6% at K=8, above the 40.6% train CV
+   for the structural reason given in [Confirmed on test](#confirmed-on-test).
+   The holdout for `corpus_v1` is now spent.
 2. **Tell colibri about normalisation.** +4.2pp on their own table for a
    division, and it is a two-line change to `route_pairs.py`'s consumer.
 3. **Position-controlled rerun.** Drop the first n Decode Tokens (n = 1, 5, 20)
    and recompute. If `structured_extraction` catches up, the Category spread was
    about Prompt length.
-4. **Longer horizons.** D uses t-1. Nothing here measures t-2 or t-4, and a
-   prefetcher would happily use them.
+4. ~~**Longer horizons.**~~ Done, and widened, in
+   [temporal-history.md](./temporal-history.md): t-2/t-4/t-8 and their unions.
+   Older Tokens add nothing at K=8 but **+8.1pp at K=16**, saturating at t-4,
+   and routing memory is longest mid-stack. That work also found `cross-layer +
+   t-1` beating the combination below by **+6.11pp** — see its point 2.
 5. **Union over Budgets, not Coverage.** For a real cache the question is the
    *residency* one: which Experts to keep, given a fixed VRAM budget across all
    40 Layers at once — a different objective from per-cell top-K.
