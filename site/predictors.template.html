@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Routing predictability by layer — corpus_v1</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-0: #f4f4f2;
+    --surface-1: #fcfcfb;
+    --surface-2: #eeeeeb;
+    --border:    #dedcd6;
+    --border-strong: #c3c1b8;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #78766f;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --grid: #e6e5e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --surface-2: #232322;
+      --border:    #33322f;
+      --border-strong: #4a4945;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #94938a;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --grid: #2b2b29;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #232322;
+    --border: #33322f; --border-strong: #4a4945;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #94938a;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --series-4: #c98500; --series-5: #d55181; --grid: #2b2b29;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root {
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    padding: 28px 20px 64px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 25px; line-height: 1.25; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 17px; margin: 40px 0 6px; letter-spacing: -0.005em; }
+  .sub { color: var(--text-secondary); margin: 0 0 4px; font-size: 14px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .tag {
+    display: inline-block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 9px; margin-bottom: 14px;
+  }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 22px 0 8px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .tile .v { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .tile .n { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  table { border-collapse: collapse; width: 100%; background: var(--surface-1);
+          border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--border); }
+  th { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase;
+       color: var(--text-secondary); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; }
+  td .sd { color: var(--text-muted); font-size: 11.5px; margin-left: 3px; }
+  tr.ref td { color: var(--text-secondary); font-style: italic; }
+  tr.best td.num.hi { font-weight: 700; }
+  tr.extra { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+  .swatch.dash { background: none; border-top: 2px dashed var(--text-muted); height: 0; border-radius: 0; width: 12px; vertical-align: 3px; }
+  .cap { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; }
+
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 14px 0 6px; }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 13px; padding: 5px 12px; background: var(--surface-1);
+    color: var(--text-secondary); border: none; border-right: 1px solid var(--border); cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); font-weight: 600; }
+  .seg-label { font-size: 12.5px; color: var(--text-secondary); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }
+  .legend button {
+    display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 13px;
+    background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 12px 4px 9px; cursor: pointer;
+  }
+  .legend button[aria-pressed="false"] { color: var(--text-muted); border-style: dashed; }
+  .legend button[aria-pressed="false"] .swatch { opacity: .3; }
+
+  .chartbox { position: relative; margin-top: 8px; }
+  svg { display: block; width: 100%; height: auto; }
+  .tip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
+    background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 20px rgba(0,0,0,.14); min-width: 168px;
+  }
+  .tip h4 { margin: 0 0 6px; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+  .tip .row { display: flex; align-items: center; gap: 7px; justify-content: space-between; }
+  .tip .row span.l { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .tip .row span.v { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .notes { margin-top: 10px; font-size: 13.5px; color: var(--text-secondary); }
+  .notes li { margin-bottom: 7px; }
+  .band { display: grid; grid-template-columns: 92px 1fr; gap: 10px 14px; align-items: baseline; font-size: 13.5px; margin-top: 4px; }
+  .band .r { font-family: ui-monospace, monospace; color: var(--text-primary); font-weight: 600; }
+  .band .d { color: var(--text-secondary); }
+  .caveat { border-left: 3px solid var(--border-strong); padding-left: 14px; color: var(--text-secondary); font-size: 13.5px; }
+  .themetog { float: right; font-size: 12px; color: var(--text-secondary); background: none;
+              border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-family: inherit; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+
+  <button class="themetog" id="themetog">theme</button>
+  <div class="tag">corpus_v1 · train split only · decode</div>
+  <h1>How much of the router's top-8 can you name in advance?</h1>
+  <p class="sub">
+    Coverage of five predictors on Qwen3.6-35B-A3B, 5-fold cross-validation over 80 prompts,
+    12,000 decode tokens, layers 1&ndash;39. <strong>Coverage@K</strong> = the fraction of the 8
+    selected experts that a budget of K names.
+  </p>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="k">Best free predictor &mdash; copy token t&minus;1</div>
+      <div class="v" id="t1">&mdash;</div>
+      <div class="n">no table, no training, 50&nbsp;ms of lead time</div>
+    </div>
+    <div class="tile">
+      <div class="k">Best single global policy</div>
+      <div class="v" id="t2">&mdash;</div>
+      <div class="n">gate-weighted Markov, 1.25&nbsp;ms of lead time</div>
+    </div>
+    <div class="tile">
+      <div class="k">Best <em>per-layer</em> policy</div>
+      <div class="v" id="t3">&mdash;</div>
+      <div class="n">picking the better horizon at each layer</div>
+    </div>
+  </div>
+
+  <h2>The checkpoint table</h2>
+  <p class="sub">Coverage@K pooled over layers, macro-averaged by prompt. <span class="mono">&plusmn;</span> is the standard deviation across the 5 folds.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Predictor</th>
+        <th>Horizon</th>
+        <th>Coverage@5</th>
+        <th>Coverage@8</th>
+        <th>Precision@5</th>
+        <th>Coverage@12</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <p class="cap">
+    Precision@K is <span class="mono">Coverage@K &times; 8/K</span> exactly &mdash; the router always selects 8, so it
+    is a rescaling of the same measurement, not a second axis. Coverage@5 is capped at
+    <span class="mono">5/8 = 62.5%</span> for <em>any</em> predictor.
+  </p>
+
+  <h2>Predictability is not uniform with depth</h2>
+  <p class="sub">Coverage at each layer. Layer 0 is excluded: no cross-layer predictor can enter it.</p>
+
+  <div class="controls">
+    <span class="seg-label">Budget K</span>
+    <span class="seg" id="kseg"></span>
+  </div>
+  <div class="legend" id="legend"></div>
+
+  <div class="panel chartbox">
+    <svg id="chart" viewBox="0 0 940 430" role="img" aria-labelledby="charttitle">
+      <title id="charttitle">Expert prediction coverage by layer, for five predictors</title>
+    </svg>
+    <div class="tip" id="tip"></div>
+  </div>
+
+  <h2>So: is a single global prefetch policy the wrong design?</h2>
+  <div class="panel">
+    <p style="margin-top:0">
+      <strong>Yes &mdash; but not in the shape you guessed.</strong> The two horizons don't rank the same way
+      at every depth; they trade places. At K=8:
+    </p>
+    <div class="band">
+      <div class="r">L1&ndash;L5</div>
+      <div class="d"><strong>Cross-layer wins</strong>, and by a lot &mdash; 36.6% vs 24.5%. Early routing barely persists between tokens, which matches Mixtral finding layer-0 repetition at chance.</div>
+      <div class="r">L6&ndash;L31</div>
+      <div class="d"><strong>Persistence wins</strong> almost throughout &mdash; 42.1% vs 37.9%, peaking at 49.3% at L31. Copying the previous token beats an extra layer of hindsight across the whole middle of the stack.</div>
+      <div class="r">L32&ndash;L39</div>
+      <div class="d"><strong>Cross-layer wins again</strong> &mdash; 44.9% vs 37.7%. Persistence collapses to 26.1% at L39 while cross-layer still holds 47.4% there: the last layer is determined by the layer below it, not by what the previous token did.</div>
+    </div>
+    <p style="margin-bottom:0">
+      An oracle that picks the better horizon per layer scores <strong id="oracle">&mdash;</strong>, against
+      <strong id="bestsingle">&mdash;</strong> for the best global one. <strong>That +3.6pp is larger than the
+      +1.6pp</strong> that the full mixed predictor buys over free persistence &mdash; so specialising the policy
+      by depth is worth more than a better predictor.
+    </p>
+  </div>
+
+  <h2>Before this goes any further</h2>
+  <ul class="notes">
+    <li><strong>Random is the floor, and popularity is barely above it.</strong> Coverage@8 of 9.2% against
+      3.1% for random &mdash; a factor of 2.9. Routing here is close to balanced, so any scheme resting on a
+      static hot set (colibri's <span class="mono">HEAT_FILE</span> included) starts from almost nothing.</li>
+    <li><strong>The learned previous-token Markov is worse than just copying</strong> at every budget up to 8
+      &mdash; 33.0% vs 38.9%, consistent in all 5 folds. The transition table spreads mass over experts that
+      <em>often</em> follow and loses the identity structure that dominates at small K. Above K=8 it overtakes,
+      because copying only ever has 8 experts to name.</li>
+    <li><strong>Gate weighting is real but tiny</strong>: +0.63pp at K=8, positive in all 5 folds. Worth taking;
+      not worth arguing about.</li>
+    <li class="caveat"><strong>The test split has not been read.</strong> Everything here is cross-validated
+      inside train, because comparing predictors is itself a modelling decision. No HMM, no sequence model, and
+      no latency measurement &mdash; all 10,240 experts fit in this box's VRAM, so every prefetch implication is
+      arithmetic, not observation.</li>
+  </ul>
+
+</div>
+</div>
+
+<script>
+const DATA = __DATA__;
+
+const SERIES = [
+  { key: "Layer popularity",        label: "Layer popularity",       color: "var(--series-1)", tag: "A"  },
+  { key: "Cross-layer Markov",      label: "Cross-layer Markov",     color: "var(--series-2)", tag: "B"  },
+  { key: "Gate-weighted Markov",    label: "Gate-weighted Markov",   color: "var(--series-3)", tag: "C"  },
+  { key: "Previous-token Markov",   label: "Previous-token Markov",  color: "var(--series-4)", tag: "D"  },
+  { key: "Persistence (copy t-1)",  label: "Persistence (copy t−1)", color: "var(--series-5)", tag: "D0" },
+];
+const HORIZON = {
+  "Layer popularity": "—",
+  "Cross-layer Markov": "layer",
+  "Gate-weighted Markov": "layer",
+  "Previous-token Markov": "token",
+  "Persistence (copy t-1)": "token",
+};
+const NS = "http://www.w3.org/2000/svg";
+const el = (n, a = {}) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+const fmt = v => v.toFixed(1);
+const randomCov = k => (k / DATA.n_experts) * 100;
+
+let K = 8;
+const shown = new Set(SERIES.map(s => s.key));
+
+/* ---------- table ---------- */
+function buildTable() {
+  const cols = [5, 8, null, 12];                       // null = Precision@5
+  const idx = k => DATA.budgets.indexOf(k);
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = "";
+
+  const rrow = document.createElement("tr");
+  rrow.className = "ref";
+  rrow.innerHTML = `<td><span class="swatch dash"></span>Random</td><td>&mdash;</td>` +
+    `<td class="num">${fmt(randomCov(5))}</td><td class="num">${fmt(randomCov(8))}</td>` +
+    `<td class="num">${fmt(randomCov(5) * 8 / 5)}</td><td class="num">${fmt(randomCov(12))}</td>`;
+  tb.appendChild(rrow);
+
+  // Best value per column, over the real predictors, so the winner is bold.
+  const best = {};
+  for (const k of [5, 8, 12]) best[k] = Math.max(...SERIES.map(s => DATA.pooled[s.key][idx(k)]));
+
+  for (const s of SERIES) {
+    const p = DATA.pooled[s.key], sd = DATA.fold_sd[s.key];
+    const cell = k => {
+      const v = p[idx(k)], hi = Math.abs(v - best[k]) < 1e-9 ? " hi" : "";
+      return `<td class="num${hi}">${fmt(v)}<span class="sd">±${sd[idx(k)].toFixed(1)}</span></td>`;
+    };
+    const tr = document.createElement("tr");
+    tr.className = "best" + (s.tag === "D0" ? " extra" : "");
+    tr.innerHTML =
+      `<td><span class="swatch" style="background:${s.color}"></span>${s.label}` +
+      `<span class="sd mono">${s.tag}</span></td>` +
+      `<td style="text-align:right;color:var(--text-muted);font-size:12.5px">${HORIZON[s.key]}</td>` +
+      cell(5) + cell(8) +
+      `<td class="num">${fmt(p[idx(5)] * 8 / 5)}</td>` +
+      cell(12);
+    tb.appendChild(tr);
+  }
+}
+
+/* ---------- chart ---------- */
+const W = 940, H = 430, M = { t: 14, r: 152, b: 46, l: 54 };
+const IW = W - M.l - M.r, IH = H - M.t - M.b;
+let YMAX = 60;
+const xs = L => M.l + (L - DATA.layers[0]) / (DATA.layers.at(-1) - DATA.layers[0]) * IW;
+const ys = v => M.t + IH - (v / YMAX) * IH;
+
+// The y-axis follows the budget: at K=16 the best predictor passes 65%, so a
+// fixed ceiling would silently clip the top of the curve rather than show it.
+function yMaxFor(ki) {
+  let m = 0;
+  for (const s of SERIES) if (shown.has(s.key)) for (const row of DATA.series[s.key]) m = Math.max(m, row[ki]);
+  return Math.max(20, Math.ceil((m + 2) / 10) * 10);
+}
+
+function draw() {
+  const svg = document.getElementById("chart");
+  [...svg.querySelectorAll("g,rect,path,text,line,circle")].forEach(n => n.remove());
+  const ki = DATA.budgets.indexOf(K);
+  YMAX = yMaxFor(ki);
+
+  const g = el("g");
+  svg.appendChild(g);
+
+  for (let v = 0; v <= YMAX; v += 10) {
+    g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: ys(v), y2: ys(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    const t = el("text", { x: M.l - 10, y: ys(v) + 4, "text-anchor": "end", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = v + "%"; g.appendChild(t);
+  }
+  for (const L of [1, 5, 10, 15, 20, 25, 30, 35, 39]) {
+    const t = el("text", { x: xs(L), y: M.t + IH + 22, "text-anchor": "middle", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = L; g.appendChild(t);
+  }
+  const ax = el("text", { x: M.l + IW / 2, y: H - 8, "text-anchor": "middle", fill: "var(--text-secondary)", "font-size": 12.5 });
+  ax.textContent = "layer"; g.appendChild(ax);
+  const ay = el("text", { x: 14, y: M.t + IH / 2, "text-anchor": "middle", fill: "var(--text-secondary)",
+                          "font-size": 12.5, transform: `rotate(-90 14 ${M.t + IH / 2})` });
+  ay.textContent = "expert prediction coverage"; g.appendChild(ay);
+
+  // random reference: a constant K/256, dashed and unlabelled by color
+  const ry = ys(randomCov(K));
+  g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: ry, y2: ry, stroke: "var(--text-muted)",
+                             "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+  const rt = el("text", { x: M.l + IW + 8, y: ry + 4, fill: "var(--text-muted)", "font-size": 11.5 });
+  rt.textContent = `random ${fmt(randomCov(K))}%`; g.appendChild(rt);
+
+  // avoid stacking end-labels on top of each other
+  const ends = SERIES.filter(s => shown.has(s.key))
+    .map(s => ({ s, v: DATA.series[s.key].at(-1)[ki] }))
+    .sort((a, b) => b.v - a.v);
+  let lastY = -Infinity;
+  for (const e of ends) { e.y = Math.max(ys(e.v), lastY + 15); lastY = e.y; }
+
+  for (const s of SERIES) {
+    if (!shown.has(s.key)) continue;
+    const pts = DATA.series[s.key].map((row, i) => [xs(DATA.layers[i]), ys(row[ki])]);
+    g.appendChild(el("path", {
+      d: "M" + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join("L"),
+      fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round",
+    }));
+    const e = ends.find(x => x.s.key === s.key);
+    const lab = el("text", { x: M.l + IW + 8, y: e.y + 4, fill: "var(--text-primary)", "font-size": 12 });
+    lab.textContent = `${s.tag} · ${fmt(e.v)}%`;
+    g.appendChild(lab);
+    g.appendChild(el("line", { x1: M.l + IW, x2: M.l + IW + 5, y1: ys(e.v), y2: e.y, stroke: s.color, "stroke-width": 1.5 }));
+  }
+
+  const hover = el("g", { id: "hover", opacity: 0 });
+  hover.appendChild(el("line", { id: "cross", y1: M.t, y2: M.t + IH, stroke: "var(--border-strong)", "stroke-width": 1 }));
+  for (const s of SERIES) hover.appendChild(el("circle", { r: 4.5, fill: s.color, stroke: "var(--surface-1)",
+                                                          "stroke-width": 2, "data-k": s.key, opacity: 0 }));
+  svg.appendChild(hover);
+
+  const hit = el("rect", { x: M.l, y: M.t, width: IW, height: IH, fill: "transparent" });
+  svg.appendChild(hit);
+  hit.addEventListener("pointermove", ev => onMove(ev, svg, ki));
+  hit.addEventListener("pointerleave", () => {
+    document.getElementById("hover").setAttribute("opacity", 0);
+    document.getElementById("tip").style.opacity = 0;
+  });
+}
+
+function onMove(ev, svg, ki) {
+  const r = svg.getBoundingClientRect();
+  const px = (ev.clientX - r.left) / r.width * W;
+  const frac = (px - M.l) / IW;
+  let i = Math.round(frac * (DATA.layers.length - 1));
+  i = Math.max(0, Math.min(DATA.layers.length - 1, i));
+  const L = DATA.layers[i], x = xs(L);
+
+  const hv = document.getElementById("hover");
+  hv.setAttribute("opacity", 1);
+  hv.querySelector("#cross").setAttribute("x1", x);
+  hv.querySelector("#cross").setAttribute("x2", x);
+  for (const c of hv.querySelectorAll("circle")) {
+    const key = c.getAttribute("data-k");
+    if (!shown.has(key)) { c.setAttribute("opacity", 0); continue; }
+    c.setAttribute("opacity", 1);
+    c.setAttribute("cx", x);
+    c.setAttribute("cy", ys(DATA.series[key][i][ki]));
+  }
+
+  const rows = SERIES.filter(s => shown.has(s.key))
+    .map(s => ({ s, v: DATA.series[s.key][i][ki] }))
+    .sort((a, b) => b.v - a.v);
+  const tip = document.getElementById("tip");
+  tip.innerHTML = `<h4>Layer ${L} &middot; K=${K}</h4>` + rows.map(o =>
+    `<div class="row"><span class="l"><span class="swatch" style="background:${o.s.color}"></span>${o.s.label}</span>` +
+    `<span class="v">${fmt(o.v)}%</span></div>`).join("");
+  tip.style.opacity = 1;
+  const box = svg.getBoundingClientRect();
+  const left = (x / W) * box.width;
+  tip.style.left = Math.min(box.width - 190, Math.max(0, left + 14)) + "px";
+  tip.style.top = "14px";
+}
+
+/* ---------- controls ---------- */
+function buildControls() {
+  const seg = document.getElementById("kseg");
+  for (const k of DATA.budgets) {
+    const b = document.createElement("button");
+    b.textContent = k;
+    b.setAttribute("aria-pressed", String(k === K));
+    b.onclick = () => {
+      K = k;
+      [...seg.children].forEach(c => c.setAttribute("aria-pressed", String(+c.textContent === K)));
+      draw();
+    };
+    seg.appendChild(b);
+  }
+  const lg = document.getElementById("legend");
+  for (const s of SERIES) {
+    const b = document.createElement("button");
+    b.setAttribute("aria-pressed", "true");
+    b.innerHTML = `<span class="swatch" style="background:${s.color}"></span>${s.label}`;
+    b.onclick = () => {
+      if (shown.has(s.key)) { if (shown.size === 1) return; shown.delete(s.key); }
+      else shown.add(s.key);
+      b.setAttribute("aria-pressed", String(shown.has(s.key)));
+      draw();
+    };
+    lg.appendChild(b);
+  }
+}
+
+function tiles() {
+  const i8 = DATA.budgets.indexOf(8);
+  const pers = DATA.pooled["Persistence (copy t-1)"][i8];
+  const gate = DATA.pooled["Gate-weighted Markov"][i8];
+  const P = DATA.series["Persistence (copy t-1)"].map(r => r[i8]);
+  const C = DATA.series["Gate-weighted Markov"].map(r => r[i8]);
+  const oracle = P.map((v, i) => Math.max(v, C[i])).reduce((a, b) => a + b, 0) / P.length;
+  document.getElementById("t1").textContent = fmt(pers) + "%";
+  document.getElementById("t2").textContent = fmt(gate) + "%";
+  document.getElementById("t3").textContent = fmt(oracle) + "%";
+  document.getElementById("oracle").textContent = fmt(oracle) + "%";
+  document.getElementById("bestsingle").textContent = fmt(gate) + "%";
+}
+
+document.getElementById("themetog").onclick = () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+};
+
+buildTable(); buildControls(); tiles(); draw();
+</script>
+</body>
+</html>

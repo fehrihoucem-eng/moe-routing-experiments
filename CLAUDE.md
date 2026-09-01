@@ -10,6 +10,7 @@ owns the capture, the dataset and the analysis — never the engine.
 | `CONTEXT.md` | The glossary. Opinionated, with `_Avoid_` lists. | Before using any project term. It is a glossary only — put nothing else in it. |
 | `docs/adr/` | Decisions that are hard to reverse, and why. | Before changing how capture or the split works. |
 | `docs/research/moe-expert-specialisation.md` | The MoE routing literature, cited to primary sources, with unverifiable claims flagged. | **Before researching this topic again — it has already been done.** |
+| `docs/results/predictor-coverage.md` | How predictable routing is, and from what. The K-curve, the depth profile, the caveats. | **Before proposing a routing predictor — the four obvious ones are measured.** |
 | `README.md` | How to run things. | — |
 
 ## Traps that have already cost time
@@ -39,6 +40,23 @@ being used was forced by sample size. Use MaxVio or counts either side of
 
 **Gates are only accurate to `top_k * 5e-5`.** The trace prints them as `%.4f`,
 so a renormalised row sums to 1 within 4e-4, not to machine precision.
+
+**Tune on the metric you report.** Coverage is macro-averaged by Prompt
+(ADR-0003), but a mean over score rows is a cell-weighted number and differs by
+~1pp — enough to look like a finding. Both the hyperparameter sweep and the
+fold-spread in `run_predictors.py` were written cell-weighted first and cost two
+full re-runs. If a number in a table and a number in a sweep disagree, this is
+why before anything else is.
+
+**A Predictor at `layer=0` used to condition on Layer 39.** `slots[:, layer - 1]`
+with `layer=0` is negative indexing, so it wrapped to the last Layer and returned
+entirely plausible numbers for a cell no cross-layer Predictor can enter.
+`score()` now raises instead; do not remove that guard to "support Layer 0".
+
+**Popularity is a much weaker baseline than it looks.** 9.2% Coverage@8 against
+a 3.1% chance line — routing here is close to balanced, so anything resting on a
+static hot set (`HEAT_FILE` included) starts from almost nothing. Do not assume
+a marginal-frequency baseline is hard to beat; assume the opposite.
 
 ## The engine is patched, not stock
 
@@ -92,9 +110,16 @@ overflows it and returns HTTP 400 with a message that reads backwards. Use
 ## Commands
 
 ```sh
-.venv/bin/python -m pytest -q                      # 33 tests
+.venv/bin/python -m pytest -q                      # 64 tests
 .venv/bin/python scripts/capture_corpus.py         # re-capture corpus_v1 (~13 min, needs the GPU)
 .venv/bin/python scripts/export_site_data.py       # rebuild site/routing.html
+.venv/bin/python scripts/run_predictors.py         # Predictor K-curves (~6 min, CPU)
+.venv/bin/python scripts/export_predictors_page.py # rebuild site/predictors.html
 ```
+
+**`run_predictors.py` chooses; `confirm_on_test.py` confirms.** Never merge them.
+The first reads train only and sweeps hyperparameters; the second spends the
+held-out split, refuses without `--confirm`, and refuses to run twice. Comparing
+Predictors *is* a modelling decision, so it happens inside train (ADR-0003).
 
 `data/` is gitignored and regenerable; everything in it comes from those scripts.

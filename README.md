@@ -97,6 +97,60 @@ in between. `make_split` refuses to overwrite without `overwrite=True`.
 > `phase=` selects prefill/decode. `split=` selects train/test. Passing
 > `split="decode"` raises rather than silently filtering to nothing.
 
+## Predicting the routing
+
+`docs/results/predictor-coverage.md` is the first result: how much of the
+Router's top-8 you can name in advance, and from what.
+
+A **Predictor** names K Slots for a target (Token, Layer); **Coverage** is the
+fraction of the 8 it got. Predictors are grouped by **Horizon** — how much is
+known when they fire — because that, not accuracy, is what decides whether a
+prediction is usable:
+
+- `token`: everything about Token t−1, known ~50 ms ahead (40 Layers at 20 tok/s)
+- `layer`: that, plus the current Token one Layer down — ~1.25 ms
+
+One Expert is 1.6 MiB at int4 gs64, so a single miss costs ~0.33 ms to fetch at
+5 GB/s. The `layer` Horizon cannot cover its own miss; the `token` Horizon has
+40x the room.
+
+```python
+from routetrace import load_routing, fit_tables, score, coverage, grid_rows
+import numpy as np
+
+r = load_routing("data/stores/corpus_v1", split="train")   # compact: slots + gates
+tables = fit_tables(r, fit_rows)                           # counts, fit rows only
+rows = grid_rows(r, score_rows)                            # tokens with a predecessor
+s = score("combined", r, tables, rows, layer=20, alpha=0.0, beta=0.75, w=0.4)
+coverage(s, r.slots[rows, 20].astype(np.int64))            # [rows, len(BUDGETS)]
+```
+
+Every conditional Predictor is one estimator with two knobs, so `popularity` is
+not a separate thing — it is the `alpha → ∞` limit, and `cross_layer` at
+`beta=0` and `beta=1` are the unweighted and gate-weighted variants:
+
+```
+P(j|i)   = (c(i,j) + alpha * pop(j)) / (c(i) + alpha)
+score(j) = sum_i (g_i ** beta) * P(j|i)
+```
+
+The headline, at K=8: copying the previous Token's Slots — free, no table —
+gets **38.9%**; the best Predictor of any kind gets **40.6%**. See the results
+document for the K-curve, the depth profile and the caveats.
+
+```sh
+.venv/bin/python scripts/run_predictors.py                    # ~6 min, CPU only
+.venv/bin/python scripts/export_predictors_page.py            # site/predictors.html
+.venv/bin/python scripts/confirm_on_test.py --predictor combined --confirm
+```
+
+`site/predictors.html` is the interactive version — the K-curve table, and
+Coverage against Layer for every Budget. Self-contained, so it opens over
+`file://`. Like `routing.html` it shows **train only**.
+
+`run_predictors.py` reads **train only** and chooses; `confirm_on_test.py` spends
+the holdout, refuses to run without `--confirm`, and refuses to run twice.
+
 ### Determinism
 
 `serve_sample()` treats `temp <= 0` as exact argmax. Verified, not assumed:
@@ -191,12 +245,15 @@ src/routetrace/
   tensor.py      load_X, COO, to_torch, prompt_slices, describe
   splits.py      make_split / read_split: stratified train-test by prompt
   transforms.py  transforms of X (expert_histogram keeps the layer axis)
+  predict.py     Predictors, the shrinkage estimator, Coverage, CV folds
   capture.py     SERVE-mode driver + chat template
-tests/           33 tests; fixtures/serve3.trace is a real 3-prompt capture
+tests/           64 tests; fixtures/serve3.trace is a real 3-prompt capture
 patches/         the colibri engine change
 prompts/         corpus_v1.json
-scripts/         capture_corpus.py, export_site_data.py
+scripts/         capture_corpus.py, export_site_data.py, run_predictors.py
 site/            routing.html (built from routing.template.html)
+docs/results/    predictor-coverage.md and its JSON (committed: not regenerable
+                 without the GPU capture)
 data/            traces and stores (gitignored; regenerate with capture_corpus.py)
 ```
 
