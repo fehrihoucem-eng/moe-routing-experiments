@@ -1,0 +1,21 @@
+[project]
+name = "moe-routing-experiments"
+version = "0.1.0"
+description = "Routing-tensor experiments on colibri ROUTE_TRACE captures"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2.0", "pyarrow>=17"]
+
+[project.optional-dependencies]
+torch = ["torch"]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

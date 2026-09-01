@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: moe-routing-experiments
+Version: 0.1.0
+Summary: Routing-tensor experiments on colibri ROUTE_TRACE captures
+Requires-Python: >=3.11
+Requires-Dist: numpy>=2.0
+Requires-Dist: pyarrow>=17
+Provides-Extra: torch
+Requires-Dist: torch; extra == "torch"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"

@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/stores/
+data/traces/*.trace
+!tests/fixtures/*.trace

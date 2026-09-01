@@ -1,0 +1,161 @@
+diff --git a/c/Makefile b/c/Makefile
+index 1f1c489..dec2e6a 100644
+--- a/c/Makefile
++++ b/c/Makefile
+@@ -1019,7 +1019,7 @@ QWEN36_TIER_SRC =
+ QWEN36_CFLAGS   = $(NOCUDA_CFLAGS)
+ QWEN36_LDFLAGS  = $(NOCUDA_LDFLAGS)
+ endif
+-qwen36$(EXE): qwen36.c qwen36_tier.h st.h json.h compat.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
++qwen36$(EXE): qwen36.c qwen36_tier.h st.h json.h compat.h route_trace.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
+ 	$(CC) $(QWEN36_CFLAGS) qwen36.c $(QWEN36_TIER_SRC) $(CUDA_OBJ) -o qwen36$(EXE) $(QWEN36_LDFLAGS)
+ 
+ # Context-size gates: KV layout, growth across requests, and the attention
+@@ -1027,17 +1027,17 @@ qwen36$(EXE): qwen36.c qwen36_tier.h st.h json.h compat.h $(QWEN36_TIER_SRC) $(C
+ # Same tier sources as the engine: the test includes qwen36.c, so with CUDA=1
+ # it needs qwen36_tier.c and the backend object too (without CUDA, the header's
+ # inline stubs cover it and both are empty).
+-tests/test_qwen36_ctx$(EXE): tests/test_qwen36_ctx.c qwen36.c qwen36_tier.h st.h json.h compat.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
++tests/test_qwen36_ctx$(EXE): tests/test_qwen36_ctx.c qwen36.c qwen36_tier.h st.h json.h compat.h route_trace.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
+ 	$(CC) $(CFLAGS) $< $(QWEN36_TIER_SRC) $(CUDA_OBJ) -o $@ $(LDFLAGS)
+ 
+-tests/test_qwen36_dense_batch$(EXE): tests/test_qwen36_dense_batch.c qwen36.c qwen36_tier.h st.h json.h compat.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
++tests/test_qwen36_dense_batch$(EXE): tests/test_qwen36_dense_batch.c qwen36.c qwen36_tier.h st.h json.h compat.h route_trace.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
+ 	$(CC) $(QWEN36_CFLAGS) $< $(QWEN36_TIER_SRC) $(CUDA_OBJ) -o $@ $(QWEN36_LDFLAGS)
+ 
+-tests/test_qwen36_json_escape$(EXE): tests/test_qwen36_json_escape.c qwen36.c qwen36_tier.h st.h json.h compat.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
++tests/test_qwen36_json_escape$(EXE): tests/test_qwen36_json_escape.c qwen36.c qwen36_tier.h st.h json.h compat.h route_trace.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
+ 	$(CC) $(QWEN36_CFLAGS) $< $(QWEN36_TIER_SRC) $(CUDA_OBJ) -o $@ $(QWEN36_LDFLAGS)
+ 
+ # Reproducible local timing evidence; intentionally not a noisy CI perf gate.
+-tests/bench_qwen36_dense_batch$(EXE): tests/bench_qwen36_dense_batch.c qwen36.c qwen36_tier.h st.h json.h compat.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
++tests/bench_qwen36_dense_batch$(EXE): tests/bench_qwen36_dense_batch.c qwen36.c qwen36_tier.h st.h json.h compat.h route_trace.h $(QWEN36_TIER_SRC) $(CUDA_OBJ)
+ 	$(CC) $(QWEN36_CFLAGS) $< $(QWEN36_TIER_SRC) $(CUDA_OBJ) -o $@ $(QWEN36_LDFLAGS)
+ 
+ inkling$(EXE): inkling.c st.h json.h tok.h tok_unicode.h tok_unicode_o200k.h compat.h omp_tune.h route_trace.h kv_prefix.h serve_codec.h $(INK_CUDA_OBJ) $(METAL_OBJ)
+diff --git a/c/qwen36.c b/c/qwen36.c
+index 28b6e55..ea28f18 100644
+--- a/c/qwen36.c
++++ b/c/qwen36.c
+@@ -59,6 +59,7 @@ static int qwen36_max_ctx(void) {
+ #endif
+ #include "st.h"
+ #include "json.h"   /* tokenizer.json parsing (reuse minimal parser) */
++#include "route_trace.h"   /* ROUTE_TRACE + .coli_usage, engine-agnostic (#700) */
+ #include "qwen36_tier.h"   /* optional transparent Vulkan compute backend for MoE experts */
+ #ifdef COLI_SEGMENT_ADAPTER
+ #include "segment_runtime.h"
+@@ -1329,6 +1330,27 @@ static void model_init_range(Model *m, const char *snap, int cap, int bits,
+     }
+     m->freq = calloc((size_t)c->n_layers * c->n_experts, sizeof(uint32_t));
+     m->hot_pinned = 0; m->freq_token_count = 0;
++    /* Routing telemetry: the ROUTE_TRACE stream and the optional .coli_usage
++     * history, in the same bytes every other engine writes. m->freq keeps its
++     * own flat [layer*E + e] layout because HOT pinning indexes it directly and
++     * decays it on its own schedule, so rt_ owns a separate set of counters
++     * rather than aliasing it the way olmoe does.
++     *
++     * Gated on allocate_state so only a full engine instance initialises it:
++     * the segment/edge worker path (model_init_range with allocate_state=0)
++     * builds a partial layer range and would otherwise re-init and leak the
++     * counters of the instance already running in this process. */
++    if (allocate_state) {
++        rt_init("qwen36", c->n_layers, c->n_experts);
++        rt_drop_row(c->n_layers);          /* every layer routes; no MTP row */
++        const char *up = getenv("COLI_USAGE");        /* optional history seed */
++        if (up && *up) {
++            int64_t h = rt_load(up);
++            if (h > 0)
++                fprintf(stderr, "[USAGE] expert history: %lld selections (%s)\n",
++                        (long long)h, up);
++        }
++    }
+     m->hot_n         = getenv("HOT")    ? atoi(getenv("HOT"))    : 0;
+     m->warmup_tokens = getenv("WARMUP") ? atoi(getenv("WARMUP")) : 5;
+     m->token_count = 0;
+@@ -1846,6 +1868,12 @@ static void moe(Model *m, Layer *l, int layer, float *x, int S, float *out) {
+         }
+         /* HF renormalizes the top-k router weights unconditionally */
+         { float sm=0; for (int kk=0;kk<K;kk++) sm+=val[kk]; if (sm>0) for (int kk=0;kk<K;kk++) val[kk]/=sm; }
++        /* Trace AFTER the renormalisation: the format documents the gates the
++         * layer actually applies, and val[] is what the accumulation below
++         * weights each expert by. Routing is decided on the CPU even when the
++         * CUDA tier runs the experts, so this records the real decision on
++         * either path. */
++        rt_route(layer, s, idx, val, K);
+         if (!m->hot_pinned && m->freq) {
+             uint32_t *freq_l = m->freq + (int64_t)layer * E;
+             for (int kk = 0; kk < K; kk++) if (idx[kk] >= 0) freq_l[idx[kk]]++;
+@@ -1912,6 +1940,7 @@ static void moe(Model *m, Layer *l, int layer, float *x, int S, float *out) {
+             }
+         }
+     }
++    rt_trace_end();     /* one moe() call traced; advance the call counter */
+     /* The CUDA tier keeps its per-token shared block above because it overlaps
+      * resident GPU experts.  CPU prefill instead traverses each shared matrix
+      * once per bounded chunk. */
+@@ -2483,6 +2512,7 @@ static void serve_one(Model *m, ServeReq *q){
+         fflush(stdout); free(ids); return;
+     }
+     printf("ACCEPT %s %d\n",q->id,np); fflush(stdout);
++    rt_prompt(q->id, np);        /* trace: this request's rows start here */
+     m->max_t = np + q->max_tok;
+     reset_recurrent(m); ensure_kv(m); m->kv_len = 0;
+     /* Per-REQUEST state, not per-process: without this the server keeps the
+@@ -2730,6 +2760,10 @@ int main(int argc, char **argv) {
+         }
+     }
+     double t = now_s();
++    /* Marker here, not next to the [enc] line above: model_init() is what opens
++     * the trace stream (rt_init -> rt_trace_open), so anything emitted before it
++     * would be written to a stream that does not exist yet. */
++    rt_prompt("argv", np);
+     generate(&m, prompt, np, n_new, out);
+     double dt = now_s() - t;
+ 
+@@ -2770,6 +2804,12 @@ int main(int argc, char **argv) {
+     fprintf(stderr, "Expert cache hit rate: %.1f%% (hit=%llu miss=%llu)\n", tot?100.0*m.hits/tot:0.0,
+            (unsigned long long)m.hits, (unsigned long long)m.miss);
+     fprintf(stderr, "Speed: %.2f tok/s (%.1fs for %d tokens)\n", n_new/dt, dt, n_new);
++    /* Same bytes as every other engine, and gated on an explicit path: qwen36
++     * has never written a history, so an unconditional save would be a new
++     * side effect on every run. The PPL path above returns before this on
++     * purpose — a measurement run must not fold its sweep into the ranking. */
++    { const char *up = getenv("COLI_USAGE");
++      if (up && *up) rt_save(up, 0); }
+     free(buf); free(arena);
+     /* Oracle mode is a gate, not a report: a mismatch must fail the caller.
+      * inkling.c does the same (`return (match == ngen) ? 0 : 1;`) and its CI
+diff --git a/c/route_trace.h b/c/route_trace.h
+index b6db744..baef65a 100644
+--- a/c/route_trace.h
++++ b/c/route_trace.h
+@@ -60,7 +60,7 @@
+ #define RT_IKU1_MAGIC 0x31554B49u      /* "IKU1" — inkling.c's usage_save/pins_load */
+ 
+ /* engines that write this format; the table exists so a mismatch names both sides */
+-static const char *rt_engine_names[] = { "glm_moe_dsa", "inkling", "olmoe", "kimi_k3", "deepseek_v4", NULL };
++static const char *rt_engine_names[] = { "glm_moe_dsa", "inkling", "olmoe", "kimi_k3", "deepseek_v4", "qwen36", NULL };
+ 
+ static uint32_t rt_hash(const char *s){        /* FNV-1a 32, stable across builds */
+     uint32_t h = 2166136261u;
+@@ -146,6 +146,19 @@ static void rt_trace(int layer, int row, const int *ids, const float *gates, int
+ /* advance the call counter: once per moe() invocation, after its rows are traced */
+ static void rt_trace_end(void){ if(rt_fp) rt_call++; }
+ 
++/* Mark the start of a prompt, so a multi-prompt run (SERVE=1 serves many requests
++ * from one process) is splittable without inferring boundaries from the layer
++ * counter, and so the prefill/decode split is stated rather than guessed: the
++ * first n_prompt_tokens rows of this prompt are its prefill.
++ *
++ * Deliberately THREE whitespace-separated fields. tools/route_pairs.py skips any
++ * line with fewer than four, so it drops this one instead of parsing "prompt" with
++ * int() and dying — a four-field marker would break every existing reader. */
++static void rt_prompt(const char *id, int n_prompt_tokens){
++    if(!rt_fp) return;
++    fprintf(rt_fp, "#prompt %s %d\n", id && *id ? id : "-", n_prompt_tokens);
++}
++
+ /* both, for an engine that does not need them at separate points in its router */
+ static void rt_route(int layer, int row, const int *ids, const float *gates, int k){
+     rt_count(layer, ids, k);
