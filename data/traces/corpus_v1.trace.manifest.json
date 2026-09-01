@@ -1,0 +1,911 @@
+{
+  "trace": "/home/houcem-fehri/moe-routing-experiments/data/traces/corpus_v1.trace",
+  "max_tok": 200,
+  "temp": 0.0,
+  "top_p": 1.0,
+  "enable_thinking": false,
+  "apply_template": true,
+  "system": null,
+  "prompts": [
+    {
+      "prompt_id": 0,
+      "key": "p00000",
+      "category": "coding",
+      "text": "Write a Python function that returns the nth Fibonacci number using memoization.",
+      "response": "```python\ndef fibonacci(n: int, memo: dict = None) -> int:\n    \"\"\"\n    Returns the nth Fibonacci number using memoization.\n    \n    Args:\n        n: A non-negative integer representing the position in the Fibonacci sequence.\n        memo: A dictionary to store previously computed Fibonacci numbers.\n        \n    Returns:\n        The nth Fibonacci number.\n        \n    Raises:\n        ValueError: If n is negative.\n        TypeError: If n is not an integer.\n    \"\"\"\n    if not isinstance(n, int):\n        raise TypeError(\"n must be an integer\")\n    if n < 0:\n        raise ValueError(\"n must be a non-negative integer\")\n    \n    if memo is None:\n        memo = {}\n    \n    if n in memo:\n        return memo[n]\n    \n    if n == 0:\n        return 0\n    if n == 1:\n        return ",
+      "n_prompt_tokens": 30,
+      "error": null
+    },
+    {
+      "prompt_id": 1,
+      "key": "p00001",
+      "category": "coding",
+      "text": "Explain what a race condition is and give a short example in Go.",
+      "response": "### What is a Race Condition?\n\nA **race condition** is a bug in concurrent programming that occurs when the behavior of a program depends on the relative timing or interleaving of multiple goroutines (or threads). This typically happens when two or more goroutines access shared data concurrently, and at least one of them modifies the data.\n\nThe result is **undefined behavior** because the final state of the data depends on which goroutine reads or writes the data at a specific moment. Race conditions are notoriously difficult to debug because they are non-deterministic—they may work correctly most of the time but fail intermittently under different loads or scheduling conditions.\n\n---\n\n### Short Example in Go\n\nHere’s a simple example in Go that demonstrates a race condition:\n\n```go\npackage main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\nvar counter int\n\nfunc main() {\n\tvar wg sync.WaitGroup\n\twg.Add(2)\n\n\t// Goroutine 1:",
+      "n_prompt_tokens": 31,
+      "error": null
+    },
+    {
+      "prompt_id": 2,
+      "key": "p00002",
+      "category": "coding",
+      "text": "Write a SQL query that returns the top 5 customers by total order value.",
+      "response": "```sql\nSELECT \n    c.customer_id,\n    c.customer_name,\n    SUM(o.order_value) AS total_order_value\nFROM \n    customers c\nJOIN \n    orders o ON c.customer_id = o.customer_id\nGROUP BY \n    c.customer_id, c.customer_name\nORDER BY \n    total_order_value DESC\nLIMIT 5;\n```",
+      "n_prompt_tokens": 32,
+      "error": null
+    },
+    {
+      "prompt_id": 3,
+      "key": "p00003",
+      "category": "coding",
+      "text": "Refactor this into a list comprehension:\nresult = []\nfor x in nums:\n    if x % 2 == 0:\n        result.append(x * x)",
+      "response": "```python\nresult = [x * x for x in nums if x % 2 == 0]\n```",
+      "n_prompt_tokens": 53,
+      "error": null
+    },
+    {
+      "prompt_id": 4,
+      "key": "p00004",
+      "category": "coding",
+      "text": "What is the difference between a shallow copy and a deep copy in Python?",
+      "response": "# Shallow Copy vs Deep Copy in Python\n\n## Core Difference\n\nThe key difference lies in **how nested objects are handled**:\n\n- **Shallow copy**: Creates a new object but inserts **references** to the nested objects.\n- **Deep copy**: Creates a new object and **recursively copies** all nested objects.\n\n## Visual Analogy\n\n```\nOriginal Object:\n┌─────��────┐\n│  List [A, B] │\n│  A → [1, 2]  │\n│  B → [3, 4]  │\n└─────��────┘\n\nShallow Copy:\n┌─────��────┐     ┌─────��────┐\n│  List [A, B] │────→│  List [A, B] │\n│  A → [1, 2]  │     │  A → [1, 2]  │  ←",
+      "n_prompt_tokens": 31,
+      "error": null
+    },
+    {
+      "prompt_id": 5,
+      "key": "p00005",
+      "category": "coding",
+      "text": "Write a bash one-liner that finds the 10 largest files under the current directory.",
+      "response": "```bash\nfind . -type f -exec du -b {} + | sort -rn | head -10 | cut -f2\n```",
+      "n_prompt_tokens": 35,
+      "error": null
+    },
+    {
+      "prompt_id": 6,
+      "key": "p00006",
+      "category": "coding",
+      "text": "Implement a binary search over a sorted array in C.",
+      "response": "```c\n#include <stddef.h>\n\nint binary_search(const int *arr, size_t size, int target) {\n    size_t left = 0;\n    size_t right = size;\n\n    while (left < right) {\n        size_t mid = left + (right - left) / 2;\n        if (arr[mid] == target) {\n            return (int)mid;\n        } else if (arr[mid] < target) {\n            left = mid + 1;\n        } else {\n            right = mid;\n        }\n    }\n\n    return -1;\n}\n```",
+      "n_prompt_tokens": 27,
+      "error": null
+    },
+    {
+      "prompt_id": 7,
+      "key": "p00007",
+      "category": "coding",
+      "text": "Why does this JavaScript print 3 three times?\nfor (var i = 0; i < 3; i++) { setTimeout(() => console.log(i), 0); }",
+      "response": "This happens due to the combination of **hoisting**, **function scope** (not block scope), and the **event loop** in JavaScript.\n\n### Step-by-Step Explanation\n\n1. **`var` is function-scoped, not block-scoped**  \n   The `var i` declaration is hoisted to the top of the function (or global scope) and is **shared** across all iterations of the loop. There is only **one** `i` variable.\n\n2. **The loop runs synchronously and completes quickly**  \n   The `for` loop executes entirely in the synchronous phase:\n   - `i = 0`: `setTimeout` is registered with a callback that references `i`.\n   - `i = 1`: `setTimeout` is registered with another callback that references the **same** `i`.\n   - `i = 2`: `setTimeout` is registered with a third callback that references the **same** `i`.",
+      "n_prompt_tokens": 55,
+      "error": null
+    },
+    {
+      "prompt_id": 8,
+      "key": "p00008",
+      "category": "coding",
+      "text": "Write a regular expression that matches a valid IPv4 address, and explain each part.",
+      "response": "Here is a regular expression that matches a valid IPv4 address, followed by a detailed explanation of each component.\n\n### The Regular Expression\n\n```regex\n^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$\n```\n\n---\n\n### Step-by-Step Explanation\n\nAn IPv4 address consists of four decimal numbers (octets) separated by three dots (`.`). Each number must be between **0** and **255**, and must not have leading zeros (e.g., `01` is invalid, but `0` is valid).\n\nThe regex is built by first defining a pattern for a single valid octet, then repeating it four times with dots in between.\n\n####",
+      "n_prompt_tokens": 33,
+      "error": null
+    },
+    {
+      "prompt_id": 9,
+      "key": "p00009",
+      "category": "coding",
+      "text": "Explain the difference between a process and a thread.",
+      "response": "To understand the difference between a **process** and a **thread**, it is helpful to first define what each term means in the context of computer science and operating systems.\n\n### 1. Definitions\n\n*   **Process**: A process is an instance of a computer program that is being executed. It is an independent unit of resource allocation managed by the operating system. Each process has its own memory space, file descriptors, and system resources.\n*   **Thread**: A thread is the smallest unit of execution within a process. A single process can contain multiple threads, which share the same memory space and resources of the parent process. Threads are often referred to as \"lightweight processes.\"\n\n### 2. Key Differences\n\n| Feature | Process | Thread |\n| :--- | :--- | :--- |\n| **Memory Space** | Each process has its own separate memory space (address space). | Threads within the same process share the same memory space and resources. |\n",
+      "n_prompt_tokens": 27,
+      "error": null
+    },
+    {
+      "prompt_id": 10,
+      "key": "p00010",
+      "category": "coding",
+      "text": "Write a Rust function that reverses the order of words in a sentence.",
+      "response": "```rust\npub fn reverse_words(sentence: &str) -> String {\n    let words: Vec<&str> = sentence.split_whitespace().collect();\n    words.into_iter().rev().collect::<Vec<&str>>().join(\" \")\n}\n```",
+      "n_prompt_tokens": 31,
+      "error": null
+    },
+    {
+      "prompt_id": 11,
+      "key": "p00011",
+      "category": "coding",
+      "text": "What does the volatile keyword do in C, and when do you actually need it?",
+      "response": "# The `volatile` Keyword in C\n\n## What It Does\n\nThe `volatile` keyword tells the compiler that a variable's value **can change at any time** without any action being taken by the code the compiler finds nearby. This prevents the compiler from applying certain optimizations that assume the variable's value is stable.\n\n### Key Effects:\n1. **Prevents optimization**: The compiler must read the variable from memory every time it's accessed, rather than caching it in a register.\n2. **Prevents reordering**: Accesses to `volatile` variables cannot be reordered with respect to other `volatile` accesses (though this is more nuanced in practice).\n3. **Ensures visibility**: Changes made by one part of the code (e.g., an interrupt handler) are visible to other parts.\n\n### Example Without `volatile` (Problematic):\n```c\nint flag = 0;\n\nvoid interrupt_handler(void) {\n    flag = 1;",
+      "n_prompt_tokens": 33,
+      "error": null
+    },
+    {
+      "prompt_id": 12,
+      "key": "p00012",
+      "category": "coding",
+      "text": "Write a Python decorator that retries a function up to three times when it raises.",
+      "response": "```python\nimport functools\nimport time\n\n\ndef retry(max_retries=3, delay=1):\n    \"\"\"\n    A decorator that retries a function up to max_retries times when it raises an exception.\n    \n    Args:\n        max_retries (int): Maximum number of retries (default: 3).\n        delay (float): Delay in seconds between retries (default: 1).\n    \n    Returns:\n        A decorator function.\n    \"\"\"\n    def decorator(func):\n        @functools.wraps(func)\n        def wrapper(*args, **kwargs):\n            last_exception = None\n            for attempt in range(max_retries + 1):  # +1 because the first try is not a retry\n                try:\n                 return func(*args, **kwargs)\n                except Exception as e:\n                 last_exception = e\n                 if attempt < max_retries:\n                 time.sleep(delay)\n            raise",
+      "n_prompt_tokens": 32,
+      "error": null
+    },
+    {
+      "prompt_id": 13,
+      "key": "p00013",
+      "category": "coding",
+      "text": "Explain how a memory leak can still happen in a garbage-collected language.",
+      "response": "It is a common misconception that garbage collection (GC) eliminates memory leaks entirely. In reality, garbage-collected languages (like Java, Python, C#, Go, and JavaScript) can still suffer from memory leaks, though the mechanism is different from manual memory management languages like C or C++.\n\n### The Core Concept: Reachability, Not Reference Counting\n\nGarbage collectors typically use **reachability analysis** (often via mark-and-sweep algorithms) to determine which objects are eligible for collection. An object is considered \"garbage\" only if it is **unreachable** from any root object (such as global variables, stack frames, or active threads).\n\nA **memory leak** in a GC language occurs when:\n> **Objects are no longer needed by the program logic, but they remain reachable from root objects, preventing the garbage collector from reclaiming them.**\n\n---\n\n### Common Causes of Memory Leaks in GC Languages\n\n#### 1. Unintentional Long-L",
+      "n_prompt_tokens": 32,
+      "error": null
+    },
+    {
+      "prompt_id": 14,
+      "key": "p00014",
+      "category": "coding",
+      "text": "Convert this callback style to async/await in JavaScript:\nfs.readFile('a.txt', (err, data) => { if (err) throw err; console.log(data); });",
+      "response": "```javascript\nconst fs = require('fs').promises;\n\nasync function readFileAsync() {\n  try {\n    const data = await fs.readFile('a.txt', 'utf8');\n    console.log(data);\n  } catch (err) {\n    throw err;\n  }\n}\n```",
+      "n_prompt_tokens": 54,
+      "error": null
+    },
+    {
+      "prompt_id": 15,
+      "key": "p00015",
+      "category": "coding",
+      "text": "Write a Dockerfile for a Python Flask app that listens on port 8000.",
+      "response": "```dockerfile\nFROM python:3.11-slim\n\nWORKDIR /app\n\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n\nCOPY . .\n\nEXPOSE 8000\n\nCMD [\"python\", \"-m\", \"flask\", \"run\", \"--host=0.0.0.0\", \"--port=8000\"]\n```",
+      "n_prompt_tokens": 35,
+      "error": null
+    },
+    {
+      "prompt_id": 16,
+      "key": "p00016",
+      "category": "coding",
+      "text": "What is the average time complexity of a hash table insert, and when does it degrade?",
+      "response": "### Average Time Complexity of Hash Table Insert\n\nThe average time complexity of inserting an element into a hash table is **$O(1)$** (constant time).\n\n#### Why is it $O(1)$?\n1.  **Hashing**: The algorithm computes a hash code for the key using a hash function. This operation typically takes $O(1)$ time (assuming the key size is bounded or the hash function is efficient).\n2.  **Index Calculation**: The hash code is transformed into an index within the underlying array using a modulo operation or bit masking. This is also $O(1)$.\n3.  **Insertion**: The element is placed directly into the array at the calculated index.\n\n*Note: This assumes a well-designed hash function and a reasonable load factor (the ratio of the number of elements to the number of buckets).*\n\n---\n\n### When Does It Degrade?\n\nThe performance degrades from $O(1)$",
+      "n_prompt_tokens": 34,
+      "error": null
+    },
+    {
+      "prompt_id": 17,
+      "key": "p00017",
+      "category": "coding",
+      "text": "Give the git commands to undo the last commit while keeping the changes staged.",
+      "response": "To undo the last commit while keeping the changes staged (i.e., in the staging area/index), use:\n\n```bash\ngit reset --soft HEAD~1\n```\n\n### Explanation:\n- `git reset` moves the current branch pointer backward.\n- `--soft` tells Git to keep the changes in the staging area (so they remain staged for the next commit).\n- `HEAD~1` refers to the commit before the current one (i.e., undo the last commit).\n\nAfter running this command, you can recommit with:\n```bash\ngit commit -m \"Your new commit message\"\n```",
+      "n_prompt_tokens": 31,
+      "error": null
+    },
+    {
+      "prompt_id": 18,
+      "key": "p00018",
+      "category": "coding",
+      "text": "Explain the difference between TCP and UDP for someone writing a multiplayer game server.",
+      "response": "For a multiplayer game server, the choice between TCP and UDP is one of the most critical architectural decisions you will make. It fundamentally dictates how your game feels, how robust it is, and how much code you need to write to handle reliability.\n\nHere’s the breakdown, tailored specifically for game development:\n\n### 1. The Core Difference\n\n| Feature | TCP (Transmission Control Protocol) | UDP (User Datagram Protocol) |\n| :--- | :--- | :--- |\n| **Reliability** | **Guaranteed.** If a packet is lost, TCP retransmits it. | **Best-effort.** If a packet is lost, it’s gone forever. |\n| **Ordering** | **Guaranteed.** Packets arrive in the order they were sent. | **No guarantee.** Packets may arrive out of order. |\n| **Flow Control** | **Yes.** Slows down if the receiver is overwhelmed. | **No.** Sends",
+      "n_prompt_tokens": 32,
+      "error": null
+    },
+    {
+      "prompt_id": 19,
+      "key": "p00019",
+      "category": "coding",
+      "text": "Write a Python class implementing a fixed-size LRU cache.",
+      "response": "```python\nfrom collections import OrderedDict\n\n\nclass LRUCache:\n    \"\"\"\n    A fixed-size Least Recently Used (LRU) cache implementation.\n    \n    Uses an OrderedDict to maintain insertion order and provide O(1) get and put operations.\n    \"\"\"\n    \n    def __init__(self, capacity: int):\n        \"\"\"\n        Initialize the LRU cache with a fixed capacity.\n        \n        Args:\n            capacity: The maximum number of items the cache can hold.\n        \"\"\"\n        if capacity <= 0:\n            raise ValueError(\"Capacity must be a positive integer\")\n        self.capacity = capacity\n        self.cache = OrderedDict()\n    \n    def get(self, key: int) -> int:\n        \"\"\"\n        Get the value for the given key if it exists in the cache.\n        \n        Args:\n            key: The key to look up.\n            \n        Returns:\n            The value associated with the key,",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 20,
+      "key": "p00020",
+      "category": "math_reasoning",
+      "text": "A train travels 120 km in 1.5 hours. What is its average speed, and how far would it travel in 4 hours at that speed?",
+      "response": "Here is the step-by-step calculation to determine the average speed and the distance traveled.\n\n### Step 1: Calculate the Average Speed\n\nThe formula for average speed is:\n$$ \\text{Speed} = \\frac{\\text{Distance}}{\\text{Time}} $$\n\nGiven:\n*   Distance ($d_1$) = $120 \\text{ km}$\n*   Time ($t_1$) = $1.5 \\text{ hours}$\n\n$$ \\text{Speed} = \\frac{120 \\text{ km}}{1.5 \\text{ hours}} $$\n\n$$ \\text{Speed} = 80 \\text{ km/h} $$\n\nThe average speed of the train is **80 km/h**.\n\n### Step 2: Calculate the Distance Traveled in 4 Hours\n\nNow, we use the calculated speed to find the distance traveled in a new time period.\n\nThe formula for distance is",
+      "n_prompt_tokens": 51,
+      "error": null
+    },
+    {
+      "prompt_id": 21,
+      "key": "p00021",
+      "category": "math_reasoning",
+      "text": "Solve for x: 3x + 7 = 22. Show your steps.",
+      "response": "To solve the equation $3x + 7 = 22$ for $x$, follow these steps:\n\n**Step 1: Isolate the term with $x$.**\nSubtract 7 from both sides of the equation to move the constant term to the right side.\n$$3x + 7 - 7 = 22 - 7$$\n$$3x = 15$$\n\n**Step 2: Solve for $x$.**\nDivide both sides by 3 to isolate $x$.\n$$\\frac{3x}{3} = \\frac{15}{3}$$\n$$x = 5$$\n\n**Verification:**\nSubstitute $x = 5$ back into the original equation:\n$$3(5) + 7 = 15 + 7 = 22$$\nThe left side equals the right side, so the solution is correct.\n\n**Final Answer:**\n$$",
+      "n_prompt_tokens": 36,
+      "error": null
+    },
+    {
+      "prompt_id": 22,
+      "key": "p00022",
+      "category": "math_reasoning",
+      "text": "What is the probability of rolling a sum of 7 with two fair six-sided dice? Explain the counting.",
+      "response": "To determine the probability of rolling a sum of 7 with two fair six-sided dice, we must first determine the total number of possible outcomes and then count the number of outcomes that result in a sum of 7.\n\n### Step 1: Determine the Total Number of Possible Outcomes\n\nEach die has 6 faces, numbered 1 through 6. Since the two dice are distinct (or independent), the total number of possible outcomes is the product of the possibilities for each die.\n\n$$\n\\text{Total Outcomes} = 6 \\times 6 = 36\n$$\n\nThese 36 outcomes can be represented as ordered pairs $(d_1, d_2)$, where $d_1$ is the result of the first die and $d_2$ is the result of the second die.\n\n### Step 2: Count the Favorable Outcomes\n\nWe need to find the number of pairs $(d_1, d_2",
+      "n_prompt_tokens": 38,
+      "error": null
+    },
+    {
+      "prompt_id": 23,
+      "key": "p00023",
+      "category": "math_reasoning",
+      "text": "Prove that the sum of any two even integers is even.",
+      "response": "To prove that the sum of any two even integers is even, we will use a direct proof based on the algebraic definition of even integers.\n\n### Step 1: Define Even Integers\nBy definition, an integer $n$ is **even** if and only if there exists an integer $k$ such that:\n$$ n = 2k $$\n\n### Step 2: Set Up the Variables\nLet $a$ and $b$ be any two arbitrary even integers.\n*   Since $a$ is even, there exists an integer $m$ such that:\n    $$ a = 2m $$\n*   Since $b$ is even, there exists an integer $n$ such that:\n    $$ b = 2n $$\n*(Note: $m$ and $n$ are distinct integers, though they could be equal.)*\n\n### Step 3: Calculate the Sum\nWe want to determine the nature of the sum $",
+      "n_prompt_tokens": 29,
+      "error": null
+    },
+    {
+      "prompt_id": 24,
+      "key": "p00024",
+      "category": "math_reasoning",
+      "text": "A shirt costs $40 after a 20% discount. What was the original price?",
+      "response": "To find the original price of the shirt, we can set up an algebraic equation based on the information provided.\n\n**1. Define the variables:**\nLet $P$ be the original price of the shirt.\n\n**2. Understand the discount:**\nA 20% discount means the customer pays $100\\% - 20\\% = 80\\%$ of the original price.\nTherefore, the discounted price is equal to $0.80 \\times P$.\n\n**3. Set up the equation:**\nWe know the discounted price is $\\$40$.\n$$0.80 \\times P = 40$$\n\n**4. Solve for $P$:**\nTo isolate $P$, divide both sides by $0.80$:\n$$P = \\frac{40}{0.80}$$\n\nTo make the division easier, you can multiply the numerator and the denominator by 1",
+      "n_prompt_tokens": 36,
+      "error": null
+    },
+    {
+      "prompt_id": 25,
+      "key": "p00025",
+      "category": "math_reasoning",
+      "text": "How many distinct arrangements are there of the letters in the word BANANA?",
+      "response": "To find the number of distinct arrangements of the letters in the word **BANANA**, we need to use the formula for permutations of a multiset (permutations with repetition).\n\n### Step 1: Count the total number of letters\nThe word **BANANA** has 6 letters in total.\n$$ n = 6 $$\n\n### Step 2: Count the frequency of each letter\nWe identify how many times each distinct letter appears:\n*   **A**: 3 times\n*   **N**: 2 times\n*   **B**: 1 time\n\n### Step 3: Apply the permutation formula\nThe number of distinct permutations $P$ of $n$ items, where there are $n_1$ identical items of type 1, $n_2$ identical items of type 2, etc., is given by:\n\n$$ P = \\frac{n!}{n_1! \\cdot n_2! \\cdot n_3",
+      "n_prompt_tokens": 31,
+      "error": null
+    },
+    {
+      "prompt_id": 26,
+      "key": "p00026",
+      "category": "math_reasoning",
+      "text": "If all Bloops are Razzies and all Razzies are Lazzies, are all Bloops Lazzies? Explain your reasoning.",
+      "response": "**Yes, all Bloops are Lazzies.**\n\n### Reasoning\n\nThis is a classic example of a **syllogism** involving transitive logic. Here is the step-by-step breakdown:\n\n1.  **Premise 1:** All Bloops are Razzies.\n    *   This means the set of \"Bloops\" is entirely contained within the set of \"Razzies.\"\n    *   If something is a Bloop, it is automatically a Razzie.\n\n2.  **Premise 2:** All Razzies are Lazzies.\n    *   This means the set of \"Razzies\" is entirely contained within the set of \"Lazzies.\"\n    *   If something is a Razzie, it is automatically a Lazzie.\n\n3.  **Logical Deduction:**\n    *   Take any arbitrary item $X$ that is a **Bloop**.\n    *   From",
+      "n_prompt_tokens": 46,
+      "error": null
+    },
+    {
+      "prompt_id": 27,
+      "key": "p00027",
+      "category": "math_reasoning",
+      "text": "A bat and a ball cost $1.10 together. The bat costs $1.00 more than the ball. How much does the ball cost?",
+      "response": "To solve this problem, we can use algebra.\n\n**1. Define the variables:**\nLet $b$ be the cost of the bat.\nLet $x$ be the cost of the ball.\n\n**2. Set up the equations based on the information given:**\n*   \"A bat and a ball cost $1.10 together\":\n    $$b + x = 1.10$$\n*   \"The bat costs $1.00 more than the ball\":\n    $$b = x + 1.00$$\n\n**3. Solve the system of equations:**\nSubstitute the second equation ($b = x + 1.00$) into the first equation:\n\n$$(x + 1.00) + x = 1.10$$\n\nCombine like terms:\n\n$$2x + 1.00 = 1.10$$\n\nSubtract $1.00$",
+      "n_prompt_tokens": 49,
+      "error": null
+    },
+    {
+      "prompt_id": 28,
+      "key": "p00028",
+      "category": "math_reasoning",
+      "text": "What is the derivative of f(x) = x^3 * ln(x)?",
+      "response": "To find the derivative of the function $f(x) = x^3 \\ln(x)$, we need to use the **Product Rule**.\n\n### Step 1: Identify the components for the Product Rule\nThe Product Rule states that for a function $f(x) = u(x)v(x)$, the derivative is:\n$$ f'(x) = u'(x)v(x) + u(x)v'(x) $$\n\nLet:\n*   $u(x) = x^3$\n*   $v(x) = \\ln(x)$\n\n### Step 2: Differentiate each component\n*   The derivative of $u(x) = x^3$ is:\n    $$ u'(x) = 3x^2 $$\n*   The derivative of $v(x) = \\ln(x)$ is:\n    $$ v'(x) = \\frac{1}{x} $$\n\n### Step 3: Apply the Product Rule\nSub",
+      "n_prompt_tokens": 33,
+      "error": null
+    },
+    {
+      "prompt_id": 29,
+      "key": "p00029",
+      "category": "math_reasoning",
+      "text": "Explain why the square root of 2 is irrational.",
+      "response": "To explain why the square root of 2 ($\\sqrt{2}$) is irrational, we use a classic method of proof called **proof by contradiction**.\n\n### Step 1: Assume the Opposite\nWe start by assuming the opposite of what we want to prove. Let us assume that $\\sqrt{2}$ is **rational**.\n\nBy definition, a rational number can be expressed as a fraction $\\frac{a}{b}$, where:\n1. $a$ and $b$ are integers.\n2. The fraction is in **simplest form** (i.e., $a$ and $b$ share no common factors other than 1). This means $\\gcd(a, b) = 1$.\n\nSo, we write:\n$$ \\sqrt{2} = \\frac{a}{b} $$\n\n### Step 2: Algebraic Manipulation\nSquare both sides of the equation to eliminate the square root:\n$$ 2 =",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 30,
+      "key": "p00030",
+      "category": "math_reasoning",
+      "text": "Five people each shake hands with every other person exactly once. How many handshakes occur?",
+      "response": "To determine the number of handshakes, we can use combinatorial logic or simple arithmetic reasoning.\n\n### Method 1: Using Combinations\n\nThis problem is equivalent to choosing 2 people out of a group of 5 to form a handshake. The order in which they shake hands does not matter (Person A shaking hands with Person B is the same as Person B shaking hands with Person A).\n\nThe formula for combinations is:\n$$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n\nWhere:\n*   $n$ is the total number of people ($5$)\n*   $k$ is the number of people involved in each handshake ($2$)\n\nPlugging in the values:\n$$ \\binom{5}{2} = \\frac{5!}{2!(5-2)!} = \\frac{5!}{2! \\cdot 3!} $$\n\nCalculate the factor",
+      "n_prompt_tokens": 35,
+      "error": null
+    },
+    {
+      "prompt_id": 31,
+      "key": "p00031",
+      "category": "math_reasoning",
+      "text": "A tank fills in 6 hours with one pipe and 4 hours with another. How long does it take with both open?",
+      "response": "To solve this problem, we need to determine the combined rate at which the tank fills when both pipes are open.\n\n### Step 1: Determine the individual rates of each pipe\n\nThe rate of work is defined as the fraction of the job completed per unit of time. Here, the \"job\" is filling one full tank.\n\n*   **Pipe 1:** Fills the tank in 6 hours.\n    $$ \\text{Rate}_1 = \\frac{1 \\text{ tank}}{6 \\text{ hours}} = \\frac{1}{6} \\text{ tank/hour} $$\n\n*   **Pipe 2:** Fills the tank in 4 hours.\n    $$ \\text{Rate}_2 = \\frac{1 \\text{ tank}}{4 \\text{ hours}} = \\frac{1}{4} \\text{ tank/hour} $$\n\n### Step 2: Determine the combined rate\n\nWhen both pipes are",
+      "n_prompt_tokens": 42,
+      "error": null
+    },
+    {
+      "prompt_id": 32,
+      "key": "p00032",
+      "category": "math_reasoning",
+      "text": "What is the sum of the first 100 positive integers, and what is the general formula?",
+      "response": "### Step 1: Identify the General Formula\n\nThe sum of the first $n$ positive integers is an arithmetic series where the first term $a_1 = 1$, the last term $a_n = n$, and the number of terms is $n$.\n\nThe general formula for the sum of the first $n$ positive integers is:\n\n$$ S_n = \\frac{n(n + 1)}{2} $$\n\n**Derivation Logic:**\nThis formula can be derived by pairing the first and last numbers, the second and second-to-last numbers, and so on.\n- $1 + n = n + 1$\n- $2 + (n - 1) = n + 1$\n- ...\nThere are $\\frac{n}{2}$ such pairs. Therefore, the sum is $\\frac{n}{2} \\times (n + 1)$.\n\n### Step 2: Calculate the Sum of the First 100",
+      "n_prompt_tokens": 37,
+      "error": null
+    },
+    {
+      "prompt_id": 33,
+      "key": "p00033",
+      "category": "math_reasoning",
+      "text": "If the probability of rain is 30% on each of three independent days, what is the probability of no rain at all?",
+      "response": "To find the probability of no rain at all over three independent days, we can follow these steps:\n\n### Step 1: Determine the probability of no rain on a single day\nThe probability of rain on any given day is given as $30\\%$, or $0.3$.\nSince the sum of the probabilities of an event happening and not happening is $1$, the probability of **no rain** on a single day is:\n$$ P(\\text{No Rain}) = 1 - P(\\text{Rain}) $$\n$$ P(\\text{No Rain}) = 1 - 0.3 = 0.7 $$\n\n### Step 2: Apply the independence condition\nThe problem states that the weather on each day is **independent**. This means the outcome of one day does not affect the others. To find the probability of multiple independent events all occurring, we multiply their individual probabilities.\n\nWe want no rain on Day 1 **AND",
+      "n_prompt_tokens": 43,
+      "error": null
+    },
+    {
+      "prompt_id": 34,
+      "key": "p00034",
+      "category": "math_reasoning",
+      "text": "Explain the difference between correlation and causation, with a concrete example.",
+      "response": "### The Core Difference\n\nThe fundamental difference between **correlation** and **causation** lies in the nature of the relationship between two variables:\n\n*   **Correlation** means that two variables change together. If one goes up, the other tends to go up (or down). It is a statistical observation of a pattern.\n*   **Causation** (or causality) means that one event **directly produces** the other. There is a cause-and-effect mechanism where changing the first variable *forces* a change in the second.\n\n**The Golden Rule:** Just because two things are correlated does **not** mean that one causes the other. There may be a third, unseen factor (a confounding variable) causing both, or it may be a complete coincidence.\n\n---\n\n### Concrete Example: Ice Cream Sales and Shark Attacks\n\nA classic and easy-to-understand example involves the relationship between **ice cream sales** and **shark attacks**.\n\n",
+      "n_prompt_tokens": 31,
+      "error": null
+    },
+    {
+      "prompt_id": 35,
+      "key": "p00035",
+      "category": "math_reasoning",
+      "text": "A car loses 15% of its value each year. What fraction of the original value remains after 3 years?",
+      "response": "To determine the fraction of the original value remaining after 3 years, we can follow these steps:\n\n### Step 1: Determine the remaining value percentage per year\nIf the car loses 15% of its value each year, it retains $100\\% - 15\\% = 85\\%$ of its value from the previous year.\n\nExpressed as a decimal or fraction:\n$$ 85\\% = 0.85 = \\frac{85}{100} = \\frac{17}{20} $$\n\nSo, at the end of each year, the car's value is $\\frac{17}{20}$ of its value at the beginning of that year.\n\n### Step 2: Calculate the remaining value after 3 years\nSince the depreciation is compounded annually, we multiply the remaining fraction by itself for each of the 3 years.\n\nLet $V_0$ be",
+      "n_prompt_tokens": 41,
+      "error": null
+    },
+    {
+      "prompt_id": 36,
+      "key": "p00036",
+      "category": "math_reasoning",
+      "text": "Solve the system of equations: 2x + y = 10 and x - y = 2.",
+      "response": "To solve the system of equations:\n\n1.  $2x + y = 10$\n2.  $x - y = 2$\n\nWe can use the **elimination method** or the **substitution method**. Here, the elimination method is particularly efficient because the coefficients of $y$ are $1$ and $-1$.\n\n### Step 1: Add the two equations together\n\n$$\n\\begin{array}{r@{\\quad}l}\n   2x + y = 10 \\\\\n+\\quad x - y = 2 \\\\\n\\hline\n   3x \\quad \\quad = 12\n\\end{array}\n$$\n\n### Step 2: Solve for $x$\n\nDivide both sides by 3:\n\n$$\nx = \\frac{12}{3}\n$$\n$$\nx = 4\n$$\n\n### Step 3: Substitute $x",
+      "n_prompt_tokens": 40,
+      "error": null
+    },
+    {
+      "prompt_id": 37,
+      "key": "p00037",
+      "category": "math_reasoning",
+      "text": "What is the next number in the sequence 2, 6, 12, 20, 30, and why?",
+      "response": "The next number in the sequence is **42**.\n\n### Reasoning\n\nThere are two common ways to analyze this sequence, both leading to the same result.\n\n#### Method 1: Differences Between Terms\nLook at the difference between consecutive numbers:\n*   $6 - 2 = 4$\n*   $12 - 6 = 6$\n*   $20 - 12 = 8$\n*   $30 - 20 = 10$\n\nThe differences are increasing by 2 each time ($4, 6, 8, 10$). Therefore, the next difference should be $12$.\n\n$$30 + 12 = 42$$\n\n#### Method 2: Multiplication Pattern\nEach term can be expressed as the product of two consecutive integers:\n*   $1 \\times 2 = 2$\n*   $2 \\times 3 = ",
+      "n_prompt_tokens": 45,
+      "error": null
+    },
+    {
+      "prompt_id": 38,
+      "key": "p00038",
+      "category": "math_reasoning",
+      "text": "Explain the pigeonhole principle and give one concrete application.",
+      "response": "### The Pigeonhole Principle\n\nThe **Pigeonhole Principle** is a fundamental concept in combinatorics and discrete mathematics. It is often stated as follows:\n\n> **If $n$ items are put into $m$ containers, with $n > m$, then at least one container must contain more than one item.**\n\nIn more general terms, if you have more \"pigeons\" than \"pigeonholes,\" at least one pigeonhole must hold more than one pigeon.\n\n#### Mathematical Formulation\nIf $n$ objects are distributed into $k$ sets, then at least one set must contain at least $\\lceil n/k \\rceil$ objects, where $\\lceil x \\rceil$ denotes the ceiling function (the smallest integer greater than or equal to $x$).\n\n---\n\n### Concrete Application: The \"Hair Count\" Problem\n\nOne of the most famous and intuitive applications of the Pigeonhole Principle involves human hair",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 39,
+      "key": "p00039",
+      "category": "math_reasoning",
+      "text": "Three switches outside a room control three bulbs inside it. You may enter the room only once. How do you determine which switch controls which bulb?",
+      "response": "To solve this puzzle, you must utilize a property of incandescent light bulbs other than just light: **heat**.\n\nHere is the step-by-step logical deduction and solution:\n\n### Step 1: Preparation\n1.  Turn **Switch 1** ON and leave it on for a few minutes (e.g., 5–10 minutes). This allows the corresponding bulb to heat up.\n2.  After a few minutes, turn **Switch 1** OFF.\n3.  Immediately turn **Switch 2** ON.\n4.  Leave **Switch 3** OFF the entire time.\n\n### Step 2: Observation\nEnter the room only once and observe the state of the three bulbs.\n\n### Step 3: Deduction\nYou can now identify which switch controls which bulb based on the following conditions:\n\n1.  **The bulb that is ON** is controlled by **Switch 2** (since it is currently turned on).",
+      "n_prompt_tokens": 45,
+      "error": null
+    },
+    {
+      "prompt_id": 40,
+      "key": "p00040",
+      "category": "factual_expository",
+      "text": "Explain how photosynthesis works.",
+      "response": "Photosynthesis is the biological process by which green plants, algae, and certain bacteria convert light energy into chemical energy. Essentially, it is the mechanism that allows these organisms to create their own food (glucose) using sunlight, water, and carbon dioxide, while releasing oxygen as a byproduct.\n\nHere is a step-by-step explanation of how it works:\n\n### 1. The Basic Equation\nThe overall chemical reaction for photosynthesis can be summarized as:\n\n**6CO₂ + 6H₂O + Light Energy → C₆H₁₂O₆ + 6O₂**\n\n*   **Carbon Dioxide (CO₂):** Taken in from the air through tiny pores in the leaves called **stomata**.\n*   **Water (H₂O):** Absorbed from the soil through the roots and transported to the leaves.\n*   **Light Energy:** Captured by **chlorophyll**, the green pigment found in **chloroplasts",
+      "n_prompt_tokens": 23,
+      "error": null
+    },
+    {
+      "prompt_id": 41,
+      "key": "p00041",
+      "category": "factual_expository",
+      "text": "What were the main causes of the fall of the Western Roman Empire?",
+      "response": "The fall of the Western Roman Empire was not caused by a single event, but rather by a complex interplay of internal decay and external pressures over several centuries. Historians generally agree on a combination of the following main causes:\n\n### 1. Political Instability and Corruption\n- **Succession Crises**: The Roman Empire lacked a clear, consistent system for imperial succession. This led to frequent civil wars, assassinations, and power struggles among rival generals and claimants to the throne.\n- **Weak Leadership**: Many emperors were puppets of the military or lacked the competence to govern effectively. The Praetorian Guard often sold the throne to the highest bidder.\n- **Division of the Empire**: In 395 CE, the empire was permanently divided into Western and Eastern halves. The Eastern Empire (Byzantine) was wealthier and more stable, allowing it to survive, while the West struggled with fewer resources and greater vulnerability.\n\n### 2. Economic",
+      "n_prompt_tokens": 30,
+      "error": null
+    },
+    {
+      "prompt_id": 42,
+      "key": "p00042",
+      "category": "factual_expository",
+      "text": "Describe the water cycle.",
+      "response": "The water cycle, also known as the hydrologic cycle, is the continuous movement of water on, above, and below the surface of the Earth. It is a closed system, meaning the total amount of water on Earth remains relatively constant, but its state and location change constantly.\n\nHere are the four main stages of the water cycle:\n\n### 1. Evaporation\n- **Process**: Solar energy heats water in oceans, lakes, rivers, and other bodies of water, causing it to change from a liquid state into water vapor (a gas).\n- **Transpiration**: Plants also release water vapor into the atmosphere through their leaves, a process called transpiration. Together, evaporation and transpiration are often referred to as **evapotranspiration**.\n\n### 2. Condensation\n- **Process**: As water vapor rises into the atmosphere, it cools down. The cooling causes the vapor to change back into liquid droplets, forming clouds.\n- **Key Factor",
+      "n_prompt_tokens": 21,
+      "error": null
+    },
+    {
+      "prompt_id": 43,
+      "key": "p00043",
+      "category": "factual_expository",
+      "text": "What is CRISPR and why was its discovery significant?",
+      "response": "**CRISPR** (Clustered Regularly Interspaced Short Palindromic Repeats) is a revolutionary technology that allows scientists to edit parts of the genome by removing, adding, or altering sections of the DNA sequence. It is often described as \"molecular scissors\" because of its ability to cut DNA at precise locations.\n\n### What is CRISPR?\n\nAt its core, CRISPR is a natural defense mechanism found in bacteria and archaea. These microorganisms use it to protect themselves from viruses (bacteriophages). Here’s how it works naturally:\n\n1.  **Memory Bank**: When a virus attacks a bacterium, the bacterium captures a small piece of the viral DNA and stores it in its own genome within CRISPR arrays. These stored snippets act as a \"memory\" of past infections.\n2.  **Recognition**: If the same virus attacks again, the bacterium transcribes these stored DNA snippets into RNA molecules called",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 44,
+      "key": "p00044",
+      "category": "factual_expository",
+      "text": "Explain how vaccines train the immune system.",
+      "response": "Vaccines train the immune system by safely introducing a harmless component of a pathogen (such as a virus or bacteria) to stimulate an immune response without causing the disease itself. This process leverages the immune system’s natural ability to remember specific invaders, ensuring a faster and stronger response if the real pathogen is encountered in the future.\n\nHere’s a step-by-step explanation of how this works:\n\n### 1. Introduction of the Antigen\nA vaccine contains an **antigen**—a piece of the pathogen that the immune system can recognize as foreign. This may be:\n- A weakened or inactivated form of the virus/bacteria.\n- A protein or sugar coat from the pathogen.\n- Genetic material (mRNA or DNA) that instructs cells to produce a harmless piece of the pathogen (like the spike protein in SARS-CoV-2).\n\n### 2. Recognition by the Immune System\nWhen the vaccine enters the body, immune",
+      "n_prompt_tokens": 25,
+      "error": null
+    },
+    {
+      "prompt_id": 45,
+      "key": "p00045",
+      "category": "factual_expository",
+      "text": "What is the difference between weather and climate?",
+      "response": "The simplest way to distinguish between weather and climate is to think of them as **mood** versus **personality**.\n\n*   **Weather** is your current mood (it can change rapidly).\n*   **Climate** is your personality (it is consistent over a long period).\n\nHere is a detailed breakdown of the differences:\n\n### 1. Time Scale\n*   **Weather**: Refers to atmospheric conditions at a **specific place and time**. It can change from minute to minute, hour to hour, or day to day.\n    *   *Example:* \"It is raining right now in Seattle.\"\n*   **Climate**: Refers to the **average** weather patterns in a region over a **long period** (typically 30 years or more). It describes what you expect to happen.\n    *   *Example:* \"Seattle has a rainy climate.\"\n\n### 2. Predictability\n*   **Weather**: Short-term forecasts are possible",
+      "n_prompt_tokens": 25,
+      "error": null
+    },
+    {
+      "prompt_id": 46,
+      "key": "p00046",
+      "category": "factual_expository",
+      "text": "Describe how a nuclear reactor generates electricity.",
+      "response": "A nuclear reactor generates electricity through a process that is fundamentally similar to how coal, natural gas, or oil-fired power plants work: **using heat to create steam, which spins a turbine, which drives a generator.** The key difference lies in the source of the heat.\n\nHere is a step-by-step description of the process:\n\n### 1. Nuclear Fission (Heat Generation)\n- **Fuel:** The reactor core contains fuel rods made of enriched uranium (typically uranium-235).\n- **Fission Reaction:** When a neutron strikes a uranium-235 atom, the atom splits (fissions) into two smaller atoms, releasing a large amount of **heat energy** and additional neutrons.\n- **Chain Reaction:** These newly released neutrons strike other uranium atoms, causing them to split as well. This creates a self-sustaining **chain reaction**.\n- **Control:** Control rods (made of materials like boron or cadmium that absorb neut",
+      "n_prompt_tokens": 24,
+      "error": null
+    },
+    {
+      "prompt_id": 47,
+      "key": "p00047",
+      "category": "factual_expository",
+      "text": "Who was Ada Lovelace and why is she important in the history of computing?",
+      "response": "**Ada Lovelace** (born Augusta Ada King, Countess of Lovelace; 1815–1852) was an English mathematician and writer, chiefly known for her work on Charles Babbage's proposed mechanical general-purpose computer, the **Analytical Engine**. She is widely recognized as the **first computer programmer** in history.\n\n### Why She Is Important in the History of Computing\n\n1. **First Algorithm Intended for a Machine**:\n   In 1843, while translating an article about the Analytical Engine by Italian engineer Luigi Menabrea, Lovelace added her own extensive notes, which were three times longer than the original text. In **Note G**, she described a step-by-step method for computing Bernoulli numbers using the Analytical Engine. This is considered the **first published algorithm** specifically designed to be carried out by a machine, making her the world’s first computer programmer.\n\n2. **Vision Beyond",
+      "n_prompt_tokens": 33,
+      "error": null
+    },
+    {
+      "prompt_id": 48,
+      "key": "p00048",
+      "category": "factual_expository",
+      "text": "Explain plate tectonics and what causes earthquakes.",
+      "response": "### Plate Tectonics: The Moving Puzzle of Earth\n\n**Plate tectonics** is the unifying theory of geology that explains the large-scale motion of Earth's lithosphere (the outermost shell of the planet). It describes how Earth's surface is not a single, solid piece, but rather a mosaic of massive, rigid slabs called **tectonic plates**.\n\n#### Key Concepts:\n1. **The Lithosphere and Asthenosphere**:\n   - The **lithosphere** includes the crust and the uppermost part of the mantle. It is rigid and broken into tectonic plates.\n   - Beneath the lithosphere lies the **asthenosphere**, a hotter, softer, and more ductile layer of the upper mantle. The lithospheric plates \"float\" and move slowly over this semi-fluid layer.\n\n2. **Types of Plate Boundaries**:\n   - **Divergent Boundaries**: Plates move **apart**",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 49,
+      "key": "p00049",
+      "category": "factual_expository",
+      "text": "What is inflation and what typically causes it?",
+      "response": "**Inflation** is the rate at which the general level of prices for goods and services rises over time, resulting in a corresponding fall in the purchasing power of money. In simpler terms, it means that your money buys less today than it did yesterday.\n\nFor example, if the inflation rate is 3% per year, a basket of goods that cost $100 last year will cost $103 this year.\n\n### What Typically Causes Inflation?\n\nEconomists generally identify three main causes of inflation:\n\n#### 1. Demand-Pull Inflation\nThis occurs when **demand for goods and services exceeds supply**. When consumers have more money to spend (due to low interest rates, strong economic growth, or government stimulus) and businesses cannot produce enough to meet that demand, prices rise.\n- **Analogy:** \"Too much money chasing too few goods.\"\n- **Example:** During a post-pandemic recovery, if many people have savings and want to",
+      "n_prompt_tokens": 25,
+      "error": null
+    },
+    {
+      "prompt_id": 50,
+      "key": "p00050",
+      "category": "factual_expository",
+      "text": "Describe how the human circulatory system works.",
+      "response": "The human circulatory system, also known as the cardiovascular system, is a complex network responsible for transporting blood, nutrients, oxygen, carbon dioxide, and hormones throughout the body. It acts as the body's delivery and waste-removal service, ensuring that every cell receives what it needs to function and survive.\n\nHere is a step-by-step breakdown of how it works:\n\n### 1. The Main Components\n- **The Heart**: A muscular pump divided into four chambers (two atria and two ventricles).\n- **Blood Vessels**:\n  - **Arteries**: Carry oxygen-rich blood away from the heart to the body (except for the pulmonary artery).\n  - **Veins**: Carry oxygen-poor blood back to the heart (except for the pulmonary vein).\n  - **Capillaries**: Tiny, thin-walled vessels where exchange of oxygen, nutrients, and waste occurs between blood and tissues.\n- **Blood**: Composed of",
+      "n_prompt_tokens": 25,
+      "error": null
+    },
+    {
+      "prompt_id": 51,
+      "key": "p00051",
+      "category": "factual_expository",
+      "text": "What was the Marshall Plan and what did it achieve?",
+      "response": "The **Marshall Plan**, officially known as the **European Recovery Program (ERP)**, was an American initiative passed in 1948 to aid Western Europe. The United States gave over $13 billion (approximately $150 billion in today’s money) in economic assistance to help rebuild Western European economies after the devastation of World War II.\n\n### Key Features of the Marshall Plan:\n1. **Economic Aid**: Provided grants and loans for infrastructure, industrial production, and agricultural recovery.\n2. **Conditionality**: Recipient countries had to cooperate in planning their recovery and reduce trade barriers among themselves.\n3. **Exclusion of the Soviet Union**: The U.S. invited the Soviet Union and its satellite states to participate, but they refused, viewing the plan as a tool for American economic imperialism and political influence.\n\n### What It Achieved:\n1. **Rapid Economic Recovery**:\n   - Industrial and agricultural production in Western Europe surpassed pre-war levels",
+      "n_prompt_tokens": 27,
+      "error": null
+    },
+    {
+      "prompt_id": 52,
+      "key": "p00052",
+      "category": "factual_expository",
+      "text": "Explain what black holes are and how they form.",
+      "response": "### What Are Black Holes?\n\nA **black hole** is a region in space where the gravitational pull is so intense that nothing—not even light—can escape from it. This extreme gravity arises because a large amount of matter is compressed into an incredibly small space.\n\n#### Key Components:\n1. **Event Horizon**: The \"point of no return.\" It is the boundary surrounding a black hole. Once anything crosses this threshold, it cannot escape the black hole’s gravity.\n2. **Singularity**: At the center of a black hole lies the singularity, a point where matter is crushed to infinite density and zero volume. Our current understanding of physics (General Relativity) breaks down here.\n3. **Accretion Disk**: A rotating disk of gas, dust, and stellar debris that spirals into the black hole. Friction heats this material to extreme temperatures, causing it to emit bright X-rays and other radiation, which helps astronomers detect black holes.\n\n---",
+      "n_prompt_tokens": 27,
+      "error": null
+    },
+    {
+      "prompt_id": 53,
+      "key": "p00053",
+      "category": "factual_expository",
+      "text": "What is the difference between DNA and RNA?",
+      "response": "DNA (Deoxyribonucleic acid) and RNA (Ribonucleic acid) are both nucleic acids essential for life, but they serve different roles and have distinct structural and chemical properties.\n\nHere is a detailed breakdown of the differences:\n\n### 1. Structural Differences\n\n| Feature | DNA (Deoxyribonucleic acid) | RNA (Ribonucleic acid) |\n| :--- | :--- | :--- |\n| **Full Name** | Deoxyribonucleic Acid | Ribonucleic Acid |\n| **Sugar Component** | **Deoxyribose** (lacks an oxygen atom at the 2' carbon position) | **Ribose** (has a hydroxyl group -OH at the 2' carbon position) |\n| **Strands** | Typically **double-stranded** (forms a double helix) | Typically **single-stranded** (can fold into complex 3D shapes",
+      "n_prompt_tokens": 25,
+      "error": null
+    },
+    {
+      "prompt_id": 54,
+      "key": "p00054",
+      "category": "factual_expository",
+      "text": "Describe the main causes of the French Revolution.",
+      "response": "The French Revolution (1789–1799) was not caused by a single event, but rather by a complex convergence of long-term social, economic, political, and intellectual factors. Historians generally categorize the main causes into the following key areas:\n\n### 1. Social Inequality and the Estate System\nFrance was divided into three \"Estates,\" a rigid social hierarchy that created deep resentment:\n- **First Estate (Clergy):** Owned ~10% of land, paid no taxes, and held significant political power.\n- **Second Estate (Nobility):** Owned ~25% of land, held top government and military positions, and were largely exempt from taxes.\n- **Third Estate (Commoners):** Included peasants, city workers, and the bourgeoisie (middle class). They made up ~98% of the population, bore the entire tax burden, and had little political power despite the bourgeoisie’s wealth and education.\n\nThis",
+      "n_prompt_tokens": 25,
+      "error": null
+    },
+    {
+      "prompt_id": 55,
+      "key": "p00055",
+      "category": "factual_expository",
+      "text": "How do antibiotics work, and why is antibiotic resistance a problem?",
+      "response": "### How Antibiotics Work\n\nAntibiotics are medications used to treat bacterial infections. They work by targeting specific structures or processes that are essential for bacteria to survive and reproduce, but which are either absent or significantly different in human cells. This selectivity allows antibiotics to kill bacteria (bactericidal) or stop their growth (bacteriostatic) without harming the host.\n\nThere are several main mechanisms by which antibiotics function:\n\n1. **Inhibiting Cell Wall Synthesis**  \n   Bacteria have rigid cell walls made of peptidoglycan, which protect them from bursting due to osmotic pressure. Human cells do not have cell walls. Antibiotics like **penicillins** and **cephalosporins** interfere with the enzymes responsible for building peptidoglycan. Without a proper cell wall, bacteria become unstable and lyse (burst), leading to cell death.\n\n2. **Disrupting Protein Synthesis**  \n  ",
+      "n_prompt_tokens": 29,
+      "error": null
+    },
+    {
+      "prompt_id": 56,
+      "key": "p00056",
+      "category": "factual_expository",
+      "text": "What is the greenhouse effect?",
+      "response": "The **greenhouse effect** is a natural process that warms the Earth's surface. It occurs when certain gases in the Earth's atmosphere trap heat from the Sun, preventing it from escaping back into space. Without this effect, Earth's average temperature would be about -18°C (0°F), making the planet too cold to support most life as we know it.\n\n### How It Works:\n1. **Solar Radiation Enters**: The Sun emits energy in the form of sunlight (mostly visible light and ultraviolet radiation), which passes through the Earth's atmosphere.\n2. **Earth Absorbs and Re-emits**: The Earth's surface absorbs some of this energy and warms up. It then re-emits the energy as infrared radiation (heat).\n3. **Greenhouse Gases Trap Heat**: Certain gases in the atmosphere—known as **greenhouse gases**—absorb and re-radiate this infrared radiation. This traps heat in the lower atmosphere, warming",
+      "n_prompt_tokens": 22,
+      "error": null
+    },
+    {
+      "prompt_id": 57,
+      "key": "p00057",
+      "category": "factual_expository",
+      "text": "Explain the significance of the Rosetta Stone.",
+      "response": "The Rosetta Stone is arguably one of the most important archaeological artifacts in history because it served as the **key to deciphering Egyptian hieroglyphs**, thereby unlocking thousands of years of ancient Egyptian history, culture, and literature that had been lost to the modern world.\n\nHere’s a breakdown of its significance:\n\n### 1. The Problem: A Lost Language\nFor centuries after the fall of the Roman Empire, the ability to read Egyptian hieroglyphs was completely lost. Although hieroglyphs were still visible on temples and monuments across Egypt, scholars could not understand them. They were often mistaken for symbolic or religious icons rather than a phonetic writing system. This meant that the vast majority of ancient Egyptian texts remained unreadable, leaving historians with only Greek and Roman accounts (which were often biased or incomplete) to understand Egypt’s past.\n\n### 2. The Solution: A Trilingual Inscription\nDiscovered in 1799 by French soldiers near the town of",
+      "n_prompt_tokens": 26,
+      "error": null
+    },
+    {
+      "prompt_id": 58,
+      "key": "p00058",
+      "category": "factual_expository",
+      "text": "How does the internet route data between two distant computers?",
+      "response": "Routing data between two distant computers on the internet is a complex but highly organized process that relies on a combination of hardware, protocols, and decentralized infrastructure. It does not happen through a single direct cable; instead, data is broken down, sent through multiple intermediate nodes, and reassembled at the destination.\n\nHere’s a step-by-step breakdown of how this works:\n\n### 1. Data is Broken into Packets\nWhen you send data (e.g., an email, a webpage request, or a file), your computer does not send it as one large block. Instead, it uses the **Transmission Control Protocol (TCP)** to break the data into smaller chunks called **packets**.\n- Each packet contains:\n  - **Header**: Source IP address, destination IP address, sequence number, and error-checking information.\n  - **Payload**: The actual data being sent.\n- Packets may take different routes to the destination and can arrive out of order. The",
+      "n_prompt_tokens": 27,
+      "error": null
+    },
+    {
+      "prompt_id": 59,
+      "key": "p00059",
+      "category": "factual_expository",
+      "text": "Explain the theory of evolution by natural selection.",
+      "response": "The theory of evolution by natural selection, first articulated by Charles Darwin and Alfred Russel Wallace in the 19th century, is the fundamental scientific explanation for how life on Earth changes over time. It explains the diversity of life and the adaptation of organisms to their environments.\n\nHere is a step-by-step explanation of the theory:\n\n### 1. Core Premise: Variation Exists\nWithin any population of organisms, individuals are not identical. There is **natural variation** in traits such as size, color, speed, metabolism, and behavior. This variation arises from:\n- **Genetic mutations**: Random changes in DNA.\n- **Sexual reproduction**: The recombination of genes from two parents.\n\n### 2. Overproduction and Competition\nOrganisms tend to produce more offspring than the environment can support. For example, a single fish may lay thousands of eggs, but only a few will survive to adulthood. This leads to a \"struggle for existence,\" where individuals",
+      "n_prompt_tokens": 26,
+      "error": null
+    },
+    {
+      "prompt_id": 60,
+      "key": "p00060",
+      "category": "conversational_creative",
+      "text": "Write a short poem about autumn rain.",
+      "response": "The sky turns gray, the wind grows cold,\nA story of the season told.\nIn silver threads, the drops descend,\nOn leaves that turn to amber, red, and blend.\n\nThe pavement gleams with wet embrace,\nAs summer’s warmth retreats from place.\nA rhythmic hush, a gentle drum,\nCalling the earth to sleep, to hum.\n\nSo wrap your coat and walk the street,\nWhere autumn’s quiet tears meet.\nFor in this rain, a truth is found:\nBeauty in loss, and peace in sound.",
+      "n_prompt_tokens": 24,
+      "error": null
+    },
+    {
+      "prompt_id": 61,
+      "key": "p00061",
+      "category": "conversational_creative",
+      "text": "I'm nervous about a job interview tomorrow. Any advice?",
+      "response": "It is completely normal to feel nervous before a job interview. In fact, a little bit of adrenaline can actually help you stay sharp and focused. Here is a practical guide to help you prepare and calm your nerves for tomorrow:\n\n### 1. Prepare, Don’t Just Memorize\n*   **Research the Company:** Spend 15–20 minutes reviewing their website, recent news, and mission statement. Knowing their current goals helps you tailor your answers.\n*   **Know Your Resume:** Be ready to explain any gap, job change, or key achievement in your resume. Use the **STAR method** (Situation, Task, Action, Result) to structure your stories.\n*   **Prepare 2–3 Questions to Ask Them:** This shows interest and helps you evaluate if the role is right for you. Examples:\n    *   “What does success look like in this role in the first 6 months?”\n    *   “Can you describe the",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 62,
+      "key": "p00062",
+      "category": "conversational_creative",
+      "text": "Tell me a short bedtime story about a lighthouse keeper.",
+      "response": "Once upon a time, on the edge of the world where the sea met the sky, lived an old lighthouse keeper named Elias. His tower, painted in stripes of white and red, stood tall against the crashing waves, its great lens spinning like a golden eye in the night.\n\nElias wasn’t just a keeper of lights; he was a keeper of dreams. Every evening, as the sun dipped below the horizon, painting the clouds in shades of lavender and gold, Elias would climb the spiral stairs to the top. He would polish the glass until it sparkled, then light the lamp. The beam would sweep across the dark water, a gentle, rhythmic pulse that whispered, *\"You are safe. You are home.\"*\n\nOne particularly stormy night, the wind howled like a wild beast, and the rain lashed against the windows. But inside the lighthouse, it was warm and quiet. Elias sat in his favorite armchair, a cup of chamomile",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 63,
+      "key": "p00063",
+      "category": "conversational_creative",
+      "text": "What's a good way to start a conversation with someone new at a party?",
+      "response": "Starting a conversation with someone new at a party can feel intimidating, but the key is often to keep it low-pressure and focused on the shared environment. Here are a few effective strategies to break the ice naturally:\n\n### 1. Use the \"Shared Context\" Approach\nThe easiest way to start is by commenting on something you’re both experiencing. This removes the pressure of having to come up with a clever opener.\n*   **The Food/Drink:** \"Have you tried the [specific dish]? I’m curious if it’s as good as it looks.\"\n*   **The Venue/Decor:** \"This place has such a cool vibe. Do you know much about the host or how they found this spot?\"\n*   **The Music:** \"I love this song. Do you know who the artist is?\"\n\n### 2. Ask for a Small Opinion or Help\nPeople generally like to feel helpful or share their expertise. It’s a low-stakes way to engage",
+      "n_prompt_tokens": 32,
+      "error": null
+    },
+    {
+      "prompt_id": 64,
+      "key": "p00064",
+      "category": "conversational_creative",
+      "text": "Write a haiku about the ocean.",
+      "response": "Endless blue expanse,\nWaves crash on the sandy shore,\nWhispers of the deep.",
+      "n_prompt_tokens": 24,
+      "error": null
+    },
+    {
+      "prompt_id": 65,
+      "key": "p00065",
+      "category": "conversational_creative",
+      "text": "My friend cancelled our plans last minute again. How should I bring it up with them?",
+      "response": "It is completely understandable to feel frustrated or disappointed when plans are cancelled last minute, especially if it has become a recurring pattern. How you approach this conversation depends largely on your friendship dynamic and how much this behavior impacts you.\n\nHere’s a step-by-step guide on how to bring it up effectively, along with some sample scripts you can adapt.\n\n### 1. Choose the Right Time and Medium\n*   **Wait until you’re calm:** If you’re still angry, wait a few hours or until the next day. Reacting in the heat of the moment can lead to defensiveness.\n*   **Use voice or in-person if possible:** Text can easily be misinterpreted as passive-aggressive. A voice note or a quick call is often warmer and clearer. If you must text, keep it light but clear.\n\n### 2. Use \"I\" Statements\nFocus on how their action made *you* feel, rather than accusing them of being inconsiderate. This",
+      "n_prompt_tokens": 34,
+      "error": null
+    },
+    {
+      "prompt_id": 66,
+      "key": "p00066",
+      "category": "conversational_creative",
+      "text": "Describe a bustling market using vivid sensory detail.",
+      "response": "The air in the market hangs heavy and thick, a tangible tapestry woven from the scent of roasting cumin, the sharp tang of overripe mangoes, and the earthy perfume of damp soil clinging to fresh radishes. It is a sensory assault that hits you the moment you cross the threshold, a chaotic symphony of life that refuses to be ignored.\n\nAbove, a patchwork of faded awnings—crimson, ochre, and indigo—filters the harsh midday sun into dappled pools of light on the cobblestones. Beneath this makeshift canopy, the noise is a physical force. Vendors shout their wares in a rhythmic, melodic cadence that blends with the clatter of metal carts, the shrill bleating of a goat tethered near the spice stalls, and the low, constant hum of hundreds of conversations overlapping in a dozen different tongues.\n\nTo your left, a pyramid of pomegranates glows like polished",
+      "n_prompt_tokens": 25,
+      "error": null
+    },
+    {
+      "prompt_id": 67,
+      "key": "p00067",
+      "category": "conversational_creative",
+      "text": "Suggest a fun weekend activity for a family with young children.",
+      "response": "A fantastic and engaging weekend activity for a family with young children is to host a **\"Backyard Camping & Storytelling Night.\"**\n\nThis activity combines the excitement of camping with the comfort of home, making it low-stress for parents while feeling like a big adventure for kids.\n\n### 🏕️ How to Set It Up:\n1. **Build a Fort or Tent**: Use blankets, chairs, and clothespins to create a cozy fort in the living room, or set up a small tent in the backyard if the weather permits.\n2. **Campfire Vibes**: If outdoors, light a safe fire pit. Indoors, use battery-operated LED candles or a projector to display a \"campfire\" on the wall.\n3. **S’mores Station**: Prepare a simple s’mores kit with graham crackers, chocolate bars, and marshmallows. Let kids help assemble their treats (parents handle the heating).\n4. **Storytime Under",
+      "n_prompt_tokens": 29,
+      "error": null
+    },
+    {
+      "prompt_id": 68,
+      "key": "p00068",
+      "category": "conversational_creative",
+      "text": "Write the opening paragraph of a mystery novel set in a small coastal town.",
+      "response": "The fog didn’t just roll into Oakhaven; it swallowed it whole, turning the familiar cobblestone streets into a ghostly labyrinth of gray and white. Elara stood on the porch of her grandmother’s crumbling Victorian, the salt air thick enough to taste, watching the lighthouse beam cut futilely through the mist. It was the kind of night when secrets felt heavy, pressing against the eardrums like deep water, and when the distant crash of waves sounded less like the ocean breathing and more like a warning. She hadn’t meant to find the body in the tide pools, but as the first light of dawn began to bleed through the clouds, revealing the pale, still form half-buried in the kelp, Elara realized that Oakhaven’s quiet peace was a lie, and the truth was already washing up at her feet.",
+      "n_prompt_tokens": 31,
+      "error": null
+    },
+    {
+      "prompt_id": 69,
+      "key": "p00069",
+      "category": "conversational_creative",
+      "text": "I've been feeling burned out at work lately. What might help?",
+      "response": "I’m sorry to hear that you’re feeling this way. Burnout is a very real and exhausting experience, often characterized by emotional exhaustion, cynicism, and a sense of ineffectiveness. It’s important to remember that burnout is not a personal failure; it’s a signal that your current workload or environment is unsustainable.\n\nHere are several strategies that might help, categorized by immediate relief and long-term changes:\n\n### 1. Immediate Relief (Short-Term)\n*   **Take a Break (If Possible):** Even a few days off can help reset your nervous system. If you can’t take time off, try taking longer lunch breaks or stepping away from your desk for a walk.\n*   **Disconnect Completely:** Set strict boundaries around work hours. Turn off work notifications on your phone and computer after hours. Avoid checking emails first thing in the morning or right before bed.\n*   **Practice Micro-Rest:** Try the \"5-4-3-2",
+      "n_prompt_tokens": 30,
+      "error": null
+    },
+    {
+      "prompt_id": 70,
+      "key": "p00070",
+      "category": "conversational_creative",
+      "text": "Write a limerick about a cat who loves computers.",
+      "response": "A tech-savvy cat named Dave,\nWould sit on the keyboard to save\nHis code from a crash,\nWith a purr and a swish,\nHe debugged with a gentle paw-pave.",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 71,
+      "key": "p00071",
+      "category": "conversational_creative",
+      "text": "What are some good questions to ask on a first date?",
+      "response": "Asking the right questions on a first date is less about conducting an interview and more about sparking genuine conversation and discovering compatibility. The best questions are open-ended, low-pressure, and allow both of you to share stories rather than just facts.\n\nHere are some great questions categorized by vibe and depth:\n\n### 🧊 Light & Fun (Great for Breaking the Ice)\nThese help ease tension and reveal personality quirks.\n\n1. **\"What’s the best meal you’ve ever had?\"** (Reveals food preferences and travel experiences.)\n2. **\"If you could instantly become an expert in any skill, what would it be?\"**\n3. **\"What’s a hobby you’ve always wanted to pick up but haven’t yet?\"**\n4. **\"What’s the most spontaneous thing you’ve ever done?\"**\n5. **\"If you had a free day with no obligations, how would you spend it?\"**\n6. **\"What’s your go-to karaoke",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 72,
+      "key": "p00072",
+      "category": "conversational_creative",
+      "text": "Invent a short myth explaining why the moon changes shape.",
+      "response": "Long before the stars were named, the sky was a single, unbroken sheet of silver silk, woven by the Weaver Goddess, Elara. She spun this celestial tapestry to cover the darkness, but she was lonely in her vast loom.\n\nOne night, she noticed a small, shy star named Lumen, who danced just below the horizon. Lumen was too faint to be seen by the world below, so Elara decided to help him shine brighter. She cut a small, perfect circle from her silver silk and pinned it to the sky, right beside Lumen. \"Now,\" she whispered, \"you will reflect my light, and the world will know you are here.\"\n\nBut Lumen was modest. He didn’t want to outshine the sun or the other stars. So, every night, he would gently pull the edges of the silver circle toward himself, hiding parts of it in his shadow to keep his glow soft and gentle. When he felt brave, he",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 73,
+      "key": "p00073",
+      "category": "conversational_creative",
+      "text": "Help me write a thank-you note to a mentor who is retiring.",
+      "response": "Here are a few options for a thank-you note to a retiring mentor, ranging from formal to personal. You can mix and match these based on your relationship with them.\n\n### Option 1: Warm & Professional (Best for most situations)\n\nDear [Mentor's Name],\n\nI was saddened to hear that you are retiring, but I am also so happy for you as you begin this next chapter.\n\nI wanted to take a moment to sincerely thank you for your guidance and support over the past [number] years. Your mentorship has been instrumental in my professional growth, and I have learned so much from your [mention a specific skill, e.g., strategic thinking, patience, leadership style].\n\nI will always appreciate the time you took to [mention a specific memory, e.g., help me navigate a difficult project, give me honest feedback, or introduce me to key contacts]. Your influence has shaped not just how I work, but how I approach challenges.\n\nI",
+      "n_prompt_tokens": 30,
+      "error": null
+    },
+    {
+      "prompt_id": 74,
+      "key": "p00074",
+      "category": "conversational_creative",
+      "text": "Describe the feeling of finally finishing a long journey.",
+      "response": "Finishing a long journey is rarely just a single emotion; it is a complex, layered experience that shifts rapidly from exhaustion to euphoria, and finally to a quiet, profound sense of peace.\n\nHere is a description of that feeling, broken down into its emotional and physical layers:\n\n### 1. The Physical Release\nThe first sensation is often **physical weightlessness**. For weeks or months, your body has been in a state of low-grade tension—carrying bags, navigating unfamiliar terrain, or enduring long hours of travel. When the journey ends, that tension dissolves. You might feel your shoulders drop, your breath deepen, and your muscles finally relax. It’s the feeling of taking off tight shoes after a long hike, or sinking into a soft bed after nights in cramped seats. The body says, *\"I am safe. I am still.\"*\n\n### 2. The Euphoric High\nThere is a surge of **triumph and disbelief**. You",
+      "n_prompt_tokens": 26,
+      "error": null
+    },
+    {
+      "prompt_id": 75,
+      "key": "p00075",
+      "category": "conversational_creative",
+      "text": "Write a short dialogue between two strangers stuck in an elevator.",
+      "response": "**Setting:** *A sleek, modern office building elevator. The doors slide shut with a soft chime. Suddenly, the lights flicker and die, plunging the car into dim emergency lighting. The elevator shudders to a halt between floors.*\n\n**Characters:**\n*   **ELIAS (30s):** Wearing a rumpled suit, holding a lukewarm coffee.\n*   **MARA (20s):** Dressed in casual tech attire, holding a tablet.\n\n***\n\n**Elias:** *(Staring at the ceiling)* Well. That’s not in the brochure.\n\n**Mara:** *(Looking up from her tablet, which has no signal)* Tell me about it. I was just about to send the quarterly report. Now I’m just sending vibes into the void.\n\n**Elias:** *(Chuckles nervously)* I’m Elias. By the way.\n\n**Mara:** Mara. Nice to meet you, Elias.",
+      "n_prompt_tokens": 28,
+      "error": null
+    },
+    {
+      "prompt_id": 76,
+      "key": "p00076",
+      "category": "conversational_creative",
+      "text": "Do you think people should keep journals? Why or why not?",
+      "response": "Whether people should keep journals is a highly personal decision, but for many, it offers significant psychological, creative, and organizational benefits. However, it’s not a one-size-fits-all solution. Here’s a balanced look at why people might choose to journal—and why some might not.\n\n### **Reasons to Keep a Journal**\n\n1. **Mental Health and Emotional Processing**\n   - **Stress Reduction:** Writing down worries, fears, or frustrations can help \"dump\" them from your mind onto paper, reducing mental clutter and anxiety.\n   - **Self-Reflection:** It provides a safe space to process emotions, understand triggers, and track personal growth over time.\n   - **Therapeutic Tool:** Many therapists recommend journaling as a complement to therapy, helping clients articulate feelings they might struggle to express verbally.\n\n2. **Clarity and Problem-Solving**\n   - **Decision Making:** Writing out pros and cons or brainstorming ideas can clarify thinking",
+      "n_prompt_tokens": 29,
+      "error": null
+    },
+    {
+      "prompt_id": 77,
+      "key": "p00077",
+      "category": "conversational_creative",
+      "text": "Write a short toast for a friend's 30th birthday.",
+      "response": "Here is a short and warm toast for your friend’s 30th birthday:\n\n\"Cheers to [Friend's Name]! They say your twenties are for finding yourself, but your thirties are for owning who you’ve become. You’ve navigated the chaos, learned the lessons, and somehow still managed to keep your sense of humor intact. Here’s to a decade of confidence, clarity, and continued adventures. May your 30s be your best chapter yet. Happy Birthday!\" 🥂",
+      "n_prompt_tokens": 30,
+      "error": null
+    },
+    {
+      "prompt_id": 78,
+      "key": "p00078",
+      "category": "conversational_creative",
+      "text": "Describe a forest at dawn in exactly three sentences.",
+      "response": "Pale light filters through the dense canopy, casting long, ethereal shadows across the dew-covered forest floor. The air is crisp and still, carrying the earthy scent of damp moss and pine needles. A single bird’s call breaks the silence, signaling the awakening of the woodland world.",
+      "n_prompt_tokens": 26,
+      "error": null
+    },
+    {
+      "prompt_id": 79,
+      "key": "p00079",
+      "category": "conversational_creative",
+      "text": "Give me an encouraging message for someone who is just learning to code.",
+      "response": "Welcome to the world of coding! It is completely normal to feel overwhelmed at first. Every expert programmer was once a beginner who stared at a blank screen, unsure of where to start.\n\nRemember that coding is less about memorizing syntax and more about learning how to solve problems. Every error message you encounter is not a failure—it’s a clue. Each bug you fix makes you stronger and more skilled.\n\nBe patient with yourself. Celebrate the small wins, like getting your first line of code to run or understanding a new concept. You are building a powerful new skill that will open doors to creativity and innovation. Keep going, stay curious, and trust the process. You’ve got this! 💻✨",
+      "n_prompt_tokens": 30,
+      "error": null
+    },
+    {
+      "prompt_id": 80,
+      "key": "p00080",
+      "category": "structured_extraction",
+      "text": "Extract the name, age and city as JSON: \"Maria Alvarez, 34, lives in Barcelona.\"",
+      "response": "```json\n{\n  \"name\": \"Maria Alvarez\",\n  \"age\": 34,\n  \"city\": \"Barcelona\"\n}\n```",
+      "n_prompt_tokens": 38,
+      "error": null
+    },
+    {
+      "prompt_id": 81,
+      "key": "p00081",
+      "category": "structured_extraction",
+      "text": "Convert this to CSV with headers name,role,years: \"Ana is a designer with 6 years. Ben is an engineer with 3 years. Cleo is a manager with 11 years.\"",
+      "response": "name,role,years\nAna,designer,6\nBen,engineer,3\nCleo,manager,11",
+      "n_prompt_tokens": 58,
+      "error": null
+    },
+    {
+      "prompt_id": 82,
+      "key": "p00082",
+      "category": "structured_extraction",
+      "text": "Extract all dates from the following and return them as a JSON array: \"The contract was signed on 3 May 2019, amended 12 January 2020, and expires 30 June 2025.\"",
+      "response": "```json\n[\n  \"3 May 2019\",\n  \"12 January 2020\",\n  \"30 June 2025\"\n]\n```",
+      "n_prompt_tokens": 68,
+      "error": null
+    },
+    {
+      "prompt_id": 83,
+      "key": "p00083",
+      "category": "structured_extraction",
+      "text": "Turn this into a JSON object with keys product, price and currency: \"The mechanical keyboard retails for 89.99 EUR.\"",
+      "response": "```json\n{\n  \"product\": \"mechanical keyboard\",\n  \"price\": 89.99,\n  \"currency\": \"EUR\"\n}\n```",
+      "n_prompt_tokens": 45,
+      "error": null
+    },
+    {
+      "prompt_id": 84,
+      "key": "p00084",
+      "category": "structured_extraction",
+      "text": "From \"Flight BA249 departs London Heathrow at 14:35 and arrives in Sao Paulo at 22:10\", extract flight_number, origin, destination, departure and arrival as JSON.",
+      "response": "```json\n{\n  \"flight_number\": \"BA249\",\n  \"origin\": \"London Heathrow\",\n  \"destination\": \"Sao Paulo\",\n  \"departure\": \"14:35\",\n  \"arrival\": \"22:10\"\n}\n```",
+      "n_prompt_tokens": 62,
+      "error": null
+    },
+    {
+      "prompt_id": 85,
+      "key": "p00085",
+      "category": "structured_extraction",
+      "text": "Reformat this as a markdown table with columns Item, Quantity and Unit Price: \"3 notebooks at 4.50 each, 1 stapler at 12.00, 12 pens at 0.80 each.\"",
+      "response": "Here is the reformatted data as a markdown table:\n\n| Item | Quantity | Unit Price |\n| :--- | :--- | :--- |\n| Notebooks | 3 | 4.50 |\n| Stapler | 1 | 12.00 |\n| Pens | 12 | 0.80 |",
+      "n_prompt_tokens": 67,
+      "error": null
+    },
+    {
+      "prompt_id": 86,
+      "key": "p00086",
+      "category": "structured_extraction",
+      "text": "Extract every email address from: \"Contact sam@acme.io or the team at support@acme.io; billing is handled by ap@vendor.co.uk.\"",
+      "response": "Here are the email addresses extracted from the text:\n\n1. sam@acme.io\n2. support@acme.io\n3. ap@vendor.co.uk",
+      "n_prompt_tokens": 49,
+      "error": null
+    },
+    {
+      "prompt_id": 87,
+      "key": "p00087",
+      "category": "structured_extraction",
+      "text": "Convert this to an ISO 8601 timestamp: \"March 7th, 2021 at a quarter past nine in the evening, UTC.\"",
+      "response": "To convert the given date and time into an ISO 8601 timestamp, let's break it down step by step:\n\n1. **Date**: \"March 7th, 2021\" translates to `2021-03-07` in ISO 8601 format.\n2. **Time**: \"a quarter past nine in the evening\" means 9:15 PM. In 24-hour format, this is `21:15`.\n3. **Timezone**: The time is specified as UTC, so we append `Z` to indicate UTC.\n\nCombining these components, the ISO 8601 timestamp is:\n\n**`2021-03-07T21:15:00Z`**\n\n### Final Answer:\n$$\n\\boxed{2021-03-07T21:15:0",
+      "n_prompt_tokens": 50,
+      "error": null
+    },
+    {
+      "prompt_id": 88,
+      "key": "p00088",
+      "category": "structured_extraction",
+      "text": "Extract these key-value pairs as a JSON object: \"status: active; plan: premium; seats: 25; renews: annually\"",
+      "response": "```json\n{\n  \"status\": \"active\",\n  \"plan\": \"premium\",\n  \"seats\": \"25\",\n  \"renews\": \"annually\"\n}\n```",
+      "n_prompt_tokens": 46,
+      "error": null
+    },
+    {
+      "prompt_id": 89,
+      "key": "p00089",
+      "category": "structured_extraction",
+      "text": "From this log line extract timestamp, level and message as JSON: \"2024-11-02T08:15:44Z ERROR Failed to connect to database after 3 retries\"",
+      "response": "```json\n{\n  \"timestamp\": \"2024-11-02T08:15:44Z\",\n  \"level\": \"ERROR\",\n  \"message\": \"Failed to connect to database after 3 retries\"\n}\n```",
+      "n_prompt_tokens": 61,
+      "error": null
+    },
+    {
+      "prompt_id": 90,
+      "key": "p00090",
+      "category": "structured_extraction",
+      "text": "Summarize the following into exactly three bullet points: \"The city council approved a new transit plan on Tuesday. It adds two tram lines, extends night bus service to 2am, and raises fares by 5% starting in April. Opponents argue the fare increase penalises low-income riders, while supporters say the revenue is needed to fund the expansion.\"",
+      "response": "*   The city council approved a new transit plan on Tuesday that includes adding two tram lines and extending night bus service until 2am.\n*   The plan introduces a 5% fare increase scheduled to take effect in April.\n*   The proposal has drawn mixed reactions, with opponents criticizing the fare hike as a burden on low-income riders and supporters arguing it is necessary to fund the system's expansion.",
+      "n_prompt_tokens": 89,
+      "error": null
+    },
+    {
+      "prompt_id": 91,
+      "key": "p00091",
+      "category": "structured_extraction",
+      "text": "Convert this ingredient list into JSON objects with name, quantity and unit: \"200 g flour, 2 eggs, 150 ml milk, 1 tsp salt\"",
+      "response": "```json\n[\n  {\n    \"name\": \"flour\",\n    \"quantity\": 200,\n    \"unit\": \"g\"\n  },\n  {\n    \"name\": \"eggs\",\n    \"quantity\": 2,\n    \"unit\": \"\"\n  },\n  {\n    \"name\": \"milk\",\n    \"quantity\": 150,\n    \"unit\": \"ml\"\n  },\n  {\n    \"name\": \"salt\",\n    \"quantity\": 1,\n    \"unit\": \"tsp\"\n  }\n]\n```",
+      "n_prompt_tokens": 53,
+      "error": null
+    },
+    {
+      "prompt_id": 92,
+      "key": "p00092",
+      "category": "structured_extraction",
+      "text": "Extract the company names mentioned: \"After Northwind acquired Contoso in 2021, Fabrikam remained its main competitor.\"",
+      "response": "The company names mentioned in the text are:\n\n1. **Northwind**\n2. **Contoso**\n3. **Fabrikam**",
+      "n_prompt_tokens": 44,
+      "error": null
+    },
+    {
+      "prompt_id": 93,
+      "key": "p00093",
+      "category": "structured_extraction",
+      "text": "Rewrite this address as JSON with street, city, postcode and country: \"48 Rue Lafayette, 75009 Paris, France\"",
+      "response": "```json\n{\n  \"street\": \"48 Rue Lafayette\",\n  \"city\": \"Paris\",\n  \"postcode\": \"75009\",\n  \"country\": \"France\"\n}\n```",
+      "n_prompt_tokens": 47,
+      "error": null
+    },
+    {
+      "prompt_id": 94,
+      "key": "p00094",
+      "category": "structured_extraction",
+      "text": "Parse this into JSON with fields title, author and year: \"Dune, written by Frank Herbert, was published in 1965.\"",
+      "response": "```json\n{\n  \"title\": \"Dune\",\n  \"author\": \"Frank Herbert\",\n  \"year\": 1965\n}\n```",
+      "n_prompt_tokens": 46,
+      "error": null
+    },
+    {
+      "prompt_id": 95,
+      "key": "p00095",
+      "category": "structured_extraction",
+      "text": "Write a SQL INSERT for a table users(name, email, age) from: \"Add Priya Nair, priya@example.com, aged 29.\"",
+      "response": "```sql\nINSERT INTO users (name, email, age) VALUES ('Priya Nair', 'priya@example.com', 29);\n```",
+      "n_prompt_tokens": 49,
+      "error": null
+    },
+    {
+      "prompt_id": 96,
+      "key": "p00096",
+      "category": "structured_extraction",
+      "text": "Extract all numeric quantities with their units from: \"The room is 4.2 m wide, 3 m tall, and holds up to 12 people for 90 minutes.\"",
+      "response": "Here are the numeric quantities and their units extracted from the text:\n\n*   **4.2 m** (width)\n*   **3 m** (height)\n*   **12** (people)\n*   **90 minutes** (time)",
+      "n_prompt_tokens": 55,
+      "error": null
+    },
+    {
+      "prompt_id": 97,
+      "key": "p00097",
+      "category": "structured_extraction",
+      "text": "Turn these bullets into a JSON array of objects with keys task and priority:\n- Fix login bug (high)\n- Update docs (low)\n- Refactor parser (medium)",
+      "response": "```json\n[\n  {\n    \"task\": \"Fix login bug\",\n    \"priority\": \"high\"\n  },\n  {\n    \"task\": \"Update docs\",\n    \"priority\": \"low\"\n  },\n  {\n    \"task\": \"Refactor parser\",\n    \"priority\": \"medium\"\n  }\n]\n```",
+      "n_prompt_tokens": 54,
+      "error": null
+    },
+    {
+      "prompt_id": 98,
+      "key": "p00098",
+      "category": "structured_extraction",
+      "text": "From \"Order #A-4471 shipped 2 units of SKU 88213 to Lisbon on 14 Feb\", extract order_id, quantity, sku, destination and date as JSON.",
+      "response": "```json\n{\n  \"order_id\": \"A-4471\",\n  \"quantity\": 2,\n  \"sku\": \"88213\",\n  \"destination\": \"Lisbon\",\n  \"date\": \"14 Feb\"\n}\n```",
+      "n_prompt_tokens": 60,
+      "error": null
+    },
+    {
+      "prompt_id": 99,
+      "key": "p00099",
+      "category": "structured_extraction",
+      "text": "Normalize these UK phone numbers to E.164 format: \"0207 946 0958, 07700 900123, +44 161 496 0999\"",
+      "response": "To normalize the provided UK phone numbers to E.164 format, we need to ensure each number follows the international standard: `+[country code][area code/number without leading zero]`.\n\nThe UK country code is **+44**. When converting to E.164, any leading `0` in the national significant number (after the country code) must be removed.\n\nHere is the step-by-step conversion for each number:\n\n1. **`0207 946 0958`**\n   - This is a London landline number.\n   - National format: `0207 946 0958`\n   - Remove leading `0`: `207 946 0958`\n   - Add country code `+44`: **+442079460958**\n\n2. **`07700",
+      "n_prompt_tokens": 75,
+      "error": null
+    }
+  ]
+}

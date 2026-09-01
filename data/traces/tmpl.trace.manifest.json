@@ -1,0 +1,29 @@
+{
+  "trace": "data/traces/tmpl.trace",
+  "max_tok": 200,
+  "temp": 0.0,
+  "top_p": 1.0,
+  "enable_thinking": false,
+  "apply_template": true,
+  "system": null,
+  "prompts": [
+    {
+      "prompt_id": 0,
+      "key": "p00000",
+      "category": "math",
+      "text": "What is 2+2?",
+      "response": "2+2 equals 4.",
+      "n_prompt_tokens": 23,
+      "error": null
+    },
+    {
+      "prompt_id": 1,
+      "key": "p00001",
+      "category": "extraction",
+      "text": "Extract the year from: 'Released in March 1998.' Answer with the year only.",
+      "response": "1998<|im_end|>",
+      "n_prompt_tokens": 37,
+      "error": null
+    }
+  ]
+}

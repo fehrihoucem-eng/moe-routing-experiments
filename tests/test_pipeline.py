@@ -3,12 +3,21 @@ the real smoke trace pins that we agree with an actual engine capture."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from routetrace import DECODE, PREFILL, build_store, load_X, parse_trace
+from routetrace import (
+    DECODE,
+    PREFILL,
+    build_store,
+    load_X,
+    parse_trace,
+    prompt_ids_for,
+    read_prompts,
+)
 from routetrace.parse import TraceFormatError
 from routetrace.tensor import prompt_slices
 from routetrace import transforms as T
@@ -274,3 +283,86 @@ def test_two_files_concatenate_without_id_collisions(tmp_path):
     X, index = load_X(tmp_path / "store", split=DECODE)
     assert sorted(set(index["prompt_id"])) == [0, 1, 2, 3]
     assert X.shape[0] == 45 + 31
+
+
+# ------------------------------------------------------------------ categories
+
+
+def _mini_trace_and_manifest(tmp_path, cats):
+    """Two-layer, 1-token-prefill + 2-decode-step trace for len(cats) prompts."""
+    lines, call = [], 0
+    for i in range(len(cats)):
+        lines.append(f"#prompt p{i:05d} 1")
+        for _ in range(3):  # 1 prefill forward + 2 decode forwards
+            for layer in (0, 1):
+                lines.append(_line(call, 0, layer, [(i, 0.6), (i + 1, 0.4)]))
+                call += 1
+    trace = _write(tmp_path, lines, "c.trace")
+    manifest = tmp_path / "c.trace.manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "prompts": [
+                    {"key": f"p{i:05d}", "category": c, "text": f"t{i}", "response": f"r{i}"}
+                    for i, c in enumerate(cats)
+                ]
+            }
+        )
+    )
+    return trace
+
+
+def test_manifest_attaches_category_and_text(tmp_path):
+    trace = _mini_trace_and_manifest(tmp_path, ["coding", "math_reasoning"])
+    build_store([trace], tmp_path / "store")
+    rows = read_prompts(tmp_path / "store").to_pylist()
+    assert [r["category"] for r in rows] == ["coding", "math_reasoning"]
+    assert [r["text"] for r in rows] == ["t0", "t1"]
+    assert [r["response"] for r in rows] == ["r0", "r1"]
+
+
+def test_load_X_filters_by_category(tmp_path):
+    trace = _mini_trace_and_manifest(tmp_path, ["coding", "math_reasoning", "coding"])
+    build_store([trace], tmp_path / "store")
+
+    assert prompt_ids_for(tmp_path / "store", "coding") == [0, 2]
+
+    X, index = load_X(tmp_path / "store", split=DECODE, categories="coding")
+    assert sorted(set(index["prompt_id"])) == [0, 2]
+    assert X.shape[0] == 4  # 2 prompts x 2 decode steps
+
+    both, _ = load_X(
+        tmp_path / "store", split=DECODE, categories=["coding", "math_reasoning"]
+    )
+    assert both.shape[0] == 6
+
+
+def test_categories_and_prompts_intersect(tmp_path):
+    trace = _mini_trace_and_manifest(tmp_path, ["coding", "math_reasoning", "coding"])
+    build_store([trace], tmp_path / "store")
+    _, index = load_X(
+        tmp_path / "store", split=DECODE, categories="coding", prompts=[2, 1]
+    )
+    assert sorted(set(index["prompt_id"])) == [2]
+
+
+def test_unknown_category_is_rejected(tmp_path):
+    trace = _mini_trace_and_manifest(tmp_path, ["coding"])
+    build_store([trace], tmp_path / "store")
+    with pytest.raises(ValueError, match="unknown categories"):
+        prompt_ids_for(tmp_path / "store", "nope")
+
+
+def test_render_chat_matches_the_engine_template():
+    from routetrace.capture import render_chat
+
+    off = render_chat("hi")
+    assert off == (
+        "<|im_start|>user\nhi<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+    )
+    on = render_chat("hi", enable_thinking=True)
+    assert on.endswith("<|im_start|>assistant\n<think>\n")
+    # the assistant state is never left bare -- that is the untrained one
+    assert not off.endswith("assistant\n") and not on.endswith("assistant\n")
+    sys_ = render_chat("hi", system="be terse")
+    assert sys_.startswith("<|im_start|>system\nbe terse<|im_end|>\n")

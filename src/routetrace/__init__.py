@@ -8,7 +8,7 @@
 
 from .parse import DECODE, PREFILL, Prompt, TraceFormatError, parse_trace
 from .store import build_store, read_meta, read_prompts, read_routing
-from .tensor import COO, describe, load_X, prompt_slices, to_torch
+from .tensor import COO, describe, load_X, prompt_ids_for, prompt_slices, to_torch
 
 __all__ = [
     "COO",
@@ -20,6 +20,7 @@ __all__ = [
     "describe",
     "load_X",
     "parse_trace",
+    "prompt_ids_for",
     "prompt_slices",
     "read_meta",
     "read_prompts",

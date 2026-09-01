@@ -45,17 +45,31 @@ class COO:
         return X
 
 
+def prompt_ids_for(store_dir: str | Path, categories: list[str] | str) -> list[int]:
+    """prompt_ids belonging to the given category or categories."""
+    if isinstance(categories, str):
+        categories = [categories]
+    rows = read_prompts(store_dir).to_pylist()
+    known = {r["category"] for r in rows if r["category"]}
+    unknown = set(categories) - known
+    if unknown:
+        raise ValueError(f"unknown categories {sorted(unknown)}; store has {sorted(known)}")
+    return [r["prompt_id"] for r in rows if r["category"] in categories]
+
+
 def load_X(
     store_dir: str | Path,
     split: str | None = DECODE,
     prompts: list[int] | None = None,
+    categories: list[str] | str | None = None,
     sparse: bool = False,
     dtype=np.float32,
 ):
     """Load X and its token index.
 
     ``split`` filters the phase and defaults to ``"decode"``; pass ``None`` to
-    keep both phases. ``prompts`` optionally restricts to a list of prompt ids.
+    keep both phases. ``prompts`` restricts to a list of prompt ids, and
+    ``categories`` to one or more corpus categories; giving both intersects them.
 
     Returns ``(X, index)``. ``X`` is ``[tokens, layers, n_experts]`` dense, or a
     :class:`COO` when ``sparse=True``. ``index`` is a structured array with
@@ -64,6 +78,10 @@ def load_X(
     store_dir = Path(store_dir)
     meta = read_meta(store_dir)
     table = read_routing(store_dir)
+
+    if categories is not None:
+        by_cat = prompt_ids_for(store_dir, categories)
+        prompts = by_cat if prompts is None else sorted(set(prompts) & set(by_cat))
 
     if split is not None:
         # phase is dictionary-encoded; cast so the comparison is against strings.

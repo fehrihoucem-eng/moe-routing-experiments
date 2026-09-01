@@ -38,9 +38,12 @@ PROMPTS_SCHEMA = pa.schema(
     [
         pa.field("prompt_id", pa.int32()),
         pa.field("key", pa.string()),
+        pa.field("category", pa.string()),
         pa.field("n_prompt_tokens", pa.int32()),
         pa.field("n_decode_tokens", pa.int32()),
         pa.field("source", pa.string()),
+        pa.field("text", pa.string()),
+        pa.field("response", pa.string()),
     ]
 )
 
@@ -61,14 +64,31 @@ def _routing_table(records: list[dict]) -> pa.Table:
     return pa.Table.from_arrays(arrays, schema=ROUTING_SCHEMA)
 
 
-def _prompts_table(prompts: list[Prompt]) -> pa.Table:
+def _load_manifests(manifests: list[str | Path] | None) -> dict[str, dict]:
+    """Map trace key -> manifest entry. The trace records only the key, so this
+    is the only route by which a prompt's category and text reach the store."""
+    by_key: dict[str, dict] = {}
+    for path in manifests or []:
+        blob = json.loads(Path(path).read_text())
+        for entry in blob.get("prompts", []):
+            by_key[entry["key"]] = entry
+    return by_key
+
+
+def _prompts_table(prompts: list[Prompt], by_key: dict[str, dict]) -> pa.Table:
+    def field(p: Prompt, name: str) -> str:
+        return str(by_key.get(p.key, {}).get(name, "") or "")
+
     return pa.Table.from_arrays(
         [
             pa.array([p.prompt_id for p in prompts], pa.int32()),
             pa.array([p.key for p in prompts], pa.string()),
+            pa.array([field(p, "category") for p in prompts], pa.string()),
             pa.array([p.n_prompt_tokens for p in prompts], pa.int32()),
             pa.array([p.n_decode_tokens for p in prompts], pa.int32()),
             pa.array([p.source for p in prompts], pa.string()),
+            pa.array([field(p, "text") for p in prompts], pa.string()),
+            pa.array([field(p, "response") for p in prompts], pa.string()),
         ],
         schema=PROMPTS_SCHEMA,
     )
@@ -79,10 +99,21 @@ def build_store(
     out_dir: str | Path,
     n_experts: int = 256,
     n_layers: int | None = None,
+    manifests: list[str | Path] | None = None,
 ) -> dict:
-    """Parse ``traces`` into a parquet store at ``out_dir``. Returns the metadata."""
+    """Parse ``traces`` into a parquet store at ``out_dir``. Returns the metadata.
+
+    ``manifests`` are the JSON sidecars written by :func:`~routetrace.capture.capture`;
+    they carry each prompt's category and text, which the trace itself does not.
+    Defaults to ``<trace>.manifest.json`` beside each trace when present."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if manifests is None:
+        manifests = [
+            m for t in traces
+            if (m := Path(str(t) + ".manifest.json")).exists()
+        ]
 
     all_records: list[dict] = []
     all_prompts: list[Prompt] = []
@@ -102,7 +133,8 @@ def build_store(
         raise ValueError(f"expert id {max_expert} exceeds n_experts={n_experts}")
 
     pq.write_table(_routing_table(all_records), out_dir / "routing.parquet", compression="zstd")
-    pq.write_table(_prompts_table(all_prompts), out_dir / "prompts.parquet", compression="zstd")
+    pq.write_table(_prompts_table(all_prompts, _load_manifests(manifests)),
+                   out_dir / "prompts.parquet", compression="zstd")
 
     # top_k is a property of the capture, not an assumption: read it back off the
     # data so a container with a different top-k does not silently mislabel X.

@@ -47,6 +47,35 @@ Both phases are captured; **every loader defaults to `split="decode"`**. Pass
 unique when both phases are loaded — the token axis keys on
 `(prompt_id, phase, token_id)`. That is why `index` carries `phase`.
 
+## Corpus
+
+`prompts/corpus_v1.json` — 100 English prompts, 20 per category: `coding`,
+`math_reasoning`, `factual_expository`, `conversational_creative`,
+`structured_extraction`.
+
+Captured with `scripts/capture_corpus.py` (greedy `temp=0`, thinking off,
+`max_tok=200`) into `data/stores/corpus_v1`: 100 prompts, **15,569 decode
+tokens**, 6.15M routing rows, 13 min. 67 of 100 responses hit the 200-token cap,
+so decode length is censored at 200 — `structured_extraction` is by far the
+shortest (69 tokens/prompt on average; extraction answers are simply short).
+
+Slice by category:
+
+```python
+X, index = load_X("data/stores/corpus_v1", categories="coding")
+X, index = load_X("data/stores/corpus_v1", categories=["coding", "math_reasoning"])
+```
+
+The full decode split is `[15569, 40, 256]` = **638 MB dense**; use
+`sparse=True` when you want the whole corpus at once.
+
+### Determinism
+
+`serve_sample()` treats `temp <= 0` as exact argmax. Verified, not assumed:
+two separate engine processes over the same prompts produce **byte-identical**
+traces, and a prompt routes identically whether it runs alone or as #85 of 100 —
+`serve_one()` resets KV per request, so requests do not leak into each other.
+
 ## The store
 
 `build_store()` writes a parquet store, which is the canonical form:
