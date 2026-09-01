@@ -169,6 +169,19 @@ Tracing does not perturb the model: routing is decided on the CPU even when the
 CUDA tier runs the experts, and measured throughput was unchanged (20.04 tok/s
 traced vs 20.68 baseline).
 
+## Explorer
+
+`site/routing.html` is a self-contained page (data inlined, so it works over
+`file://`) covering the shape of X, the Expert-vs-Slot distinction, where
+categories separate by depth, and the corpus split. Rebuild it with:
+
+```sh
+.venv/bin/python scripts/export_site_data.py
+```
+
+It reads the **train** split only, so nothing on the page can inform a decision
+the held-out split is meant to validate.
+
 ## Layout
 
 ```
@@ -182,7 +195,8 @@ src/routetrace/
 tests/           33 tests; fixtures/serve3.trace is a real 3-prompt capture
 patches/         the colibri engine change
 prompts/         corpus_v1.json
-scripts/         capture_corpus.py
+scripts/         capture_corpus.py, export_site_data.py
+site/            routing.html (built from routing.template.html)
 data/            traces and stores (gitignored; regenerate with capture_corpus.py)
 ```
 

@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwen3.6 routing — corpus_v1</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:#f9f9f7; --surface-1:#fcfcfb;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --series-1:#2a78d6; --series-2:#eb6834; --series-3:#1baf7a;
+    --series-4:#eda100; --series-5:#e87ba4;
+    --accent:#2a78d6; --accent-soft:#86b6ef;
+    --good:#0ca30c; --critical:#d03b3b;
+    --ramp:#cde2fb,#b7d3f6,#9ec5f4,#86b6ef,#6da7ec,#5598e7,#3987e5,#2a78d6,#256abf,#1c5cab,#184f95,#104281,#0d366b;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --page:#0d0d0d; --surface-1:#1a1a19;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+      --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70;
+      --series-4:#c98500; --series-5:#d55181;
+      --accent:#3987e5; --accent-soft:#1c5cab;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --page:#0d0d0d; --surface-1:#1a1a19;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+    --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70;
+    --series-4:#c98500; --series-5:#d55181;
+    --accent:#3987e5; --accent-soft:#1c5cab;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--page); color:var(--text-primary);
+    font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 24px 96px}
+  header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:8px}
+  h1{font-size:26px;line-height:1.25;margin:0 0 6px;letter-spacing:-0.01em}
+  h2{font-size:19px;margin:0 0 6px;letter-spacing:-0.01em}
+  .sub{color:var(--text-secondary);margin:0;max-width:62ch}
+  .lede{color:var(--text-secondary);margin:0 0 18px;max-width:68ch}
+  section{margin-top:44px}
+  .card{
+    background:var(--surface-1);border:1px solid var(--border);border-radius:12px;
+    padding:20px 22px 22px;margin-top:16px;
+  }
+  .card h3{font-size:15px;margin:0 0 2px;font-weight:600}
+  .card .cap{color:var(--muted);font-size:13px;margin:0 0 16px;max-width:70ch}
+  .eyebrow{
+    font-size:11px;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--muted);font-weight:600;margin:0 0 8px
+  }
+  button.theme{
+    background:var(--surface-1);color:var(--text-secondary);border:1px solid var(--border);
+    border-radius:8px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap
+  }
+  button.theme:hover{color:var(--text-primary)}
+
+  /* KPI row */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:18px}
+  .kpi{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .kpi .v{font-size:27px;line-height:1.15;font-weight:600;letter-spacing:-0.02em}
+  .kpi .k{color:var(--muted);font-size:12.5px;margin-top:3px}
+
+  /* chips */
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);
+    background:transparent;color:var(--text-secondary);border-radius:999px;
+    padding:6px 12px;font:inherit;font-size:13px;cursor:pointer
+  }
+  .chip:hover{color:var(--text-primary)}
+  .chip[aria-pressed="true"]{border-color:var(--accent);color:var(--text-primary);font-weight:600}
+  .chip .sw{width:9px;height:9px;border-radius:2px;flex:none}
+
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin:0 0 12px;font-size:13px;color:var(--text-secondary)}
+  .legend .it{display:inline-flex;align-items:center;gap:7px}
+  .legend .sw{width:11px;height:11px;border-radius:2px}
+  .legend .ln{width:16px;height:2px;border-radius:1px}
+  .scale{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}
+  .scale .bar{height:9px;width:190px;border-radius:2px;border:1px solid var(--border)}
+
+  svg{display:block;width:100%;overflow:visible}
+  canvas{display:block;width:100%}
+  .axis-t{fill:var(--muted);font-size:11px}
+  .axis-l{fill:var(--text-secondary);font-size:12px}
+  .grid-l{stroke:var(--grid);stroke-width:1}
+  .base-l{stroke:var(--axis);stroke-width:1}
+
+  /* tooltip */
+  .tip{
+    position:fixed;pointer-events:none;z-index:50;opacity:0;transition:opacity .09s;
+    background:var(--surface-1);color:var(--text-primary);border:1px solid var(--border);
+    border-radius:8px;padding:8px 11px;font-size:12.5px;line-height:1.5;
+    box-shadow:0 4px 16px rgba(0,0,0,.14);max-width:270px
+  }
+  .tip b{font-weight:600}
+  .tip .m{color:var(--muted)}
+
+  /* tables */
+  details{margin-top:16px;border-top:1px solid var(--border);padding-top:12px}
+  summary{cursor:pointer;color:var(--text-secondary);font-size:13px}
+  summary:hover{color:var(--text-primary)}
+  table{border-collapse:collapse;width:100%;margin-top:12px;font-size:13px}
+  th,td{text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+  th:first-child,td:first-child{text-align:left;font-variant-numeric:normal}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+
+  .note{
+    border-left:2px solid var(--accent);padding:2px 0 2px 14px;margin:16px 0;
+    color:var(--text-secondary);max-width:68ch
+  }
+  .warn{border-left-color:var(--critical)}
+  code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.9em;
+    background:var(--page);border:1px solid var(--border);border-radius:4px;padding:1px 5px
+  }
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:760px){.two{grid-template-columns:1fr}}
+  .matrix{display:grid;gap:2px}
+  .mc{
+    aspect-ratio:1;border-radius:3px;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-variant-numeric:tabular-nums
+  }
+  .mlab{font-size:11px;color:var(--muted);display:flex;align-items:center}
+  .mlab.rot{writing-mode:vertical-rl;transform:rotate(180deg);justify-content:flex-end}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>Which experts fire, and when</h1>
+    <p class="sub">Expert routing in Qwen3.6-35B-A3B, measured over <b>corpus_v1</b> — 100 prompts,
+    five categories, greedy decoding. Everything below is the <b>train</b> split; the test split is held out.</p>
+  </div>
+  <button class="theme" id="theme">Dark</button>
+</header>
+
+<div class="kpis" id="kpis"></div>
+
+<!-- ── 1. shape ───────────────────────────────────────────── -->
+<section>
+  <p class="eyebrow">1 · The shape</p>
+  <h2>Every token picks 8 experts in each of 40 layers</h2>
+  <p class="lede">The model has 40 layers. Each layer holds its own 256 experts and, for every token,
+  its router selects 8 of them and gives each a <i>gate</i> — a weight, and the eight sum to 1.
+  One token therefore lights up 320 experts out of 10,240.</p>
+
+  <div class="card">
+    <h3>One token, fully expanded</h3>
+    <p class="cap">A single decode token from a coding prompt. Each dot is one selected expert;
+    darker means a larger gate. Read a column as “what layer <i>n</i> chose for this token”.</p>
+    <div class="scale" style="margin-bottom:12px">
+      <span>gate 0</span><div class="bar" id="gateScale"></div><span id="gateMax">0.9</span>
+    </div>
+    <svg id="oneTok" viewBox="0 0 960 470" role="img" aria-label="Scatter of selected experts by layer for one token"></svg>
+  </div>
+</section>
+
+<!-- ── 2. expert vs slot ──────────────────────────────────── -->
+<section>
+  <p class="eyebrow">2 · The distinction that matters</p>
+  <h2>An expert is a <i>(layer, slot)</i> pair — not a slot number</h2>
+  <p class="lede">Each layer numbers its own experts 0–255. Slot 169 in layer 0 and slot 169 in layer 16
+  are different weight matrices that never share a parameter. colibri counts them the way you should:
+  40 × 256 = <b>10,240</b> distinct experts.</p>
+
+  <div class="card">
+    <h3>Slot <span id="slotN">169</span> across the 40 layers</h3>
+    <p class="cap">Selection count for one slot number in each layer. These are 40 separate experts.
+    Adding the bars together produces a number that describes no single expert.</p>
+    <svg id="collapse" viewBox="0 0 960 260" role="img" aria-label="Selection count for one slot index in each layer"></svg>
+    <details>
+      <summary>Table view</summary>
+      <div id="collapseTable"></div>
+    </details>
+  </div>
+
+  <div class="note warn">
+    <b>This bit me.</b> An earlier pass summed each slot across all 40 layers and reported the result as
+    “the hottest experts”. Collapsing that axis also flattened the differences between categories —
+    the two matrices below are the same data, one grouped correctly and one collapsed.
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h3>Correct — per expert</h3>
+      <p class="cap">Cosine similarity between category routing profiles over all 10,240 experts.</p>
+      <div id="simExpert"></div>
+    </div>
+    <div class="card">
+      <h3>Misleading — collapsed to slots</h3>
+      <p class="cap">The same profiles summed over layers, onto 256 slot numbers.</p>
+      <div id="simSlot"></div>
+    </div>
+  </div>
+  <div class="scale" style="margin-top:14px;justify-content:center">
+    <span>0.0 &nbsp;different</span><div class="bar" id="simScale"></div><span>identical&nbsp; 1.0</span>
+  </div>
+  <p class="lede" style="margin-top:14px">Collapsed, every category looks alike — 0.88 to 0.94, near-identical.
+  Grouped by expert, the same categories sit between <b>0.20 and 0.54</b>. The similarity was an artefact of
+  the collapse.</p>
+</section>
+
+<!-- ── 3. depth ───────────────────────────────────────────── -->
+<section>
+  <p class="eyebrow">3 · Where the categories separate</p>
+  <h2>Early layers route alike; the middle does the discriminating</h2>
+  <p class="lede">For each layer, this compares the five categories’ expert distributions against each other.
+  High means all five route the same way; low means the layer routes differently depending on the task.</p>
+
+  <div class="card">
+    <h3>Agreement between categories, layer by layer</h3>
+    <p class="cap">Mean cosine similarity across all ten category pairs, per layer. The band spans the
+    most- and least-similar pair in that layer.</p>
+    <div class="legend">
+      <span class="it"><span class="ln" style="background:var(--series-1)"></span>Mean of 10 pairs</span>
+      <span class="it"><span class="sw" style="background:var(--accent-soft);opacity:.35"></span>Min–max range</span>
+    </div>
+    <svg id="depth" viewBox="0 0 960 320" role="img" aria-label="Category routing agreement by layer"></svg>
+    <details>
+      <summary>Table view</summary>
+      <div id="depthTable"></div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h3>The full expert map</h3>
+    <p class="cap">All 10,240 experts: 40 layers down, 256 slots across. Colour is how much more often
+    that expert fired than an even split would predict. Switch category to see the map change.</p>
+    <div class="chips" id="heatChips"></div>
+    <div class="scale" style="margin-bottom:10px">
+      <span>never</span><div class="bar" id="heatScale"></div><span id="heatMaxLab">×20 of even</span>
+    </div>
+    <canvas id="heat" height="600"></canvas>
+    <p class="cap" style="margin:10px 0 0">Vertical streaks are experts a layer leans on for everything.
+    The scattered mid-map texture is where the task actually changes the routing.</p>
+  </div>
+</section>
+
+<!-- ── 4. corpus ──────────────────────────────────────────── -->
+<section>
+  <p class="eyebrow">4 · What was measured</p>
+  <h2>100 prompts, split 80/20 by prompt</h2>
+  <p class="lede">Four test prompts per category are held out. The split is by prompt, never by token:
+  tokens inside one answer share a prefix and a topic, so splitting those across train and test
+  would leak.</p>
+
+  <div class="card">
+    <h3>Decode tokens per category</h3>
+    <p class="cap">Answer length varies, so equal prompt counts do not give equal token counts.
+    Structured extraction answers are simply shorter.</p>
+    <div class="legend">
+      <span class="it"><span class="sw" style="background:var(--series-1)"></span>Train</span>
+      <span class="it"><span class="sw" style="background:var(--accent-soft)"></span>Test (held out)</span>
+    </div>
+    <svg id="corpus" viewBox="0 0 960 260" role="img" aria-label="Decode tokens per category, train and test"></svg>
+    <details>
+      <summary>Table view</summary>
+      <div id="corpusTable"></div>
+    </details>
+  </div>
+</section>
+
+</div>
+<div class="tip" id="tip"></div>
+
+<script type="application/json" id="payload">__DATA__</script>
+<script>
+(function(){
+"use strict";
+const D = JSON.parse(document.getElementById('payload').textContent);
+const CATS = D.categories;
+const SER = ['--series-1','--series-2','--series-3','--series-4','--series-5'];
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = n => n.toLocaleString('en-US');
+const NS = 'http://www.w3.org/2000/svg';
+
+function ramp(){ return cssv('--ramp').split(',').map(s=>s.trim()); }
+function isDark(){
+  const t = document.documentElement.getAttribute('data-theme');
+  if(t) return t === 'dark';
+  return matchMedia('(prefers-color-scheme: dark)').matches;
+}
+/* Sequential: near-zero recedes toward the surface. On the dark surface that is
+   the darkest step, so the ramp reverses — not an automatic flip of the hues. */
+function rampColor(t){
+  const r = ramp(), steps = isDark() ? r.slice().reverse() : r;
+  const x = Math.max(0, Math.min(1, t));
+  return steps[Math.min(steps.length-1, Math.round(x*(steps.length-1)))];
+}
+function rampCSS(){
+  const r = ramp(), steps = isDark() ? r.slice().reverse() : r;
+  return `linear-gradient(to right, ${steps.join(',')})`;
+}
+function el(tag, attrs, parent){
+  const n = document.createElementNS(NS, tag);
+  for(const k in attrs) n.setAttribute(k, attrs[k]);
+  if(parent) parent.appendChild(n);
+  return n;
+}
+/* tooltip */
+const tip = document.getElementById('tip');
+function showTip(e, html){
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if(x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if(y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+  tip.style.left = x+'px'; tip.style.top = y+'px';
+}
+const hideTip = () => tip.style.opacity = 0;
+
+/* ── KPIs ─────────────────────────────────────────────── */
+function kpis(){
+  const m = D.meta;
+  const items = [
+    [fmt(m.n_experts), 'experts (40 × 256)'],
+    [m.top_k + ' of 256', 'chosen per layer, per token'],
+    [fmt(Object.values(D.tokens_train).reduce((a,b)=>a+b,0)), 'decode tokens (train)'],
+    [fmt(m.n_rows), 'routing rows captured'],
+    [m.n_train + ' / ' + m.n_test, 'prompts train / test'],
+  ];
+  document.getElementById('kpis').innerHTML = items
+    .map(([v,k]) => `<div class="kpi"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
+}
+
+/* ── 1. one token ─────────────────────────────────────── */
+function oneToken(){
+  const svg = document.getElementById('oneTok'); svg.innerHTML='';
+  const W=960,H=470,ml=44,mr=12,mt=10,mb=34;
+  const pw=W-ml-mr, ph=H-mt-mb;
+  const L=D.one_token.layers, nL=L.length;
+  const x = l => ml + (l+0.5)*(pw/nL);
+  const y = s => mt + (s/255)*ph;
+  let gmax=0; L.forEach(a=>a.forEach(d=>{ if(d[1]>gmax) gmax=d[1]; }));
+  document.getElementById('gateMax').textContent = gmax.toFixed(2);
+  document.getElementById('gateScale').style.background = rampCSS();
+
+  for(let s=0;s<=255;s+=64){
+    el('line',{x1:ml,x2:W-mr,y1:y(s),y2:y(s),class:'grid-l'},svg);
+    el('text',{x:ml-9,y:y(s)+4,class:'axis-t','text-anchor':'end'},svg).textContent=s;
+  }
+  el('text',{x:12,y:mt+ph/2,class:'axis-l','text-anchor':'middle',
+             transform:`rotate(-90 12 ${mt+ph/2})`},svg).textContent='slot (0–255)';
+  el('line',{x1:ml,x2:W-mr,y1:mt+ph,y2:mt+ph,class:'base-l'},svg);
+  for(let l=0;l<nL;l+=4){
+    el('text',{x:x(l),y:H-12,class:'axis-t','text-anchor':'middle'},svg).textContent=l;
+  }
+  el('text',{x:ml+pw/2,y:H-0,class:'axis-l','text-anchor':'middle'},svg).textContent='layer';
+
+  L.forEach((sel,l)=>{
+    sel.forEach(([slot,gate])=>{
+      const c = el('circle',{cx:x(l),cy:y(slot),r:4.5,fill:rampColor(gate/gmax),
+                             stroke:'var(--surface-1)','stroke-width':1.5},svg);
+      const hit = el('circle',{cx:x(l),cy:y(slot),r:11,fill:'transparent'},svg);
+      const html = `<b>Layer ${l}, slot ${slot}</b><br><span class="m">gate</span> ${gate.toFixed(4)}`;
+      hit.addEventListener('mousemove',e=>{ c.setAttribute('r',6); showTip(e,html); });
+      hit.addEventListener('mouseleave',()=>{ c.setAttribute('r',4.5); hideTip(); });
+    });
+  });
+}
+
+/* ── 2a. collapse bars ────────────────────────────────── */
+function collapse(){
+  const C=D.collapse;
+  document.getElementById('slotN').textContent=C.slot;
+  const svg=document.getElementById('collapse'); svg.innerHTML='';
+  const W=960,H=260,ml=44,mr=12,mt=14,mb=34, pw=W-ml-mr, ph=H-mt-mb;
+  const v=C.per_layer, max=Math.max(...v);
+  const bw=pw/v.length, x=i=>ml+i*bw, y=d=>mt+ph-(d/max)*ph;
+  for(let i=0;i<=4;i++){
+    const val=Math.round(max*i/4), yy=mt+ph-(i/4)*ph;
+    el('line',{x1:ml,x2:W-mr,y1:yy,y2:yy,class:'grid-l'},svg);
+    el('text',{x:ml-9,y:yy+4,class:'axis-t','text-anchor':'end'},svg).textContent=val;
+  }
+  el('line',{x1:ml,x2:W-mr,y1:mt+ph,y2:mt+ph,class:'base-l'},svg);
+  const peak=v.indexOf(max);
+  v.forEach((d,i)=>{
+    const h=Math.max(1,(d/max)*ph);
+    el('rect',{x:x(i)+1,y:y(d),width:Math.max(1,bw-2),height:h,rx:3,
+               fill:i===peak?'var(--series-1)':'var(--accent-soft)'},svg);
+    const hit=el('rect',{x:x(i),y:mt,width:bw,height:ph,fill:'transparent'},svg);
+    hit.addEventListener('mousemove',e=>showTip(e,
+      `<b>Layer ${i}, slot ${C.slot}</b><br><span class="m">selections</span> ${fmt(d)}`));
+    hit.addEventListener('mouseleave',hideTip);
+    if(i%4===0) el('text',{x:x(i)+bw/2,y:H-12,class:'axis-t','text-anchor':'middle'},svg).textContent=i;
+  });
+  el('text',{x:x(peak)+bw/2,y:y(max)-7,class:'axis-l','text-anchor':'middle',
+             'font-weight':'600'},svg).textContent=fmt(max);
+  el('text',{x:ml+pw/2,y:H,class:'axis-l','text-anchor':'middle'},svg).textContent='layer';
+
+  let rows='<table><thead><tr><th>Layer</th><th>Selections</th></tr></thead><tbody>';
+  v.forEach((d,i)=>rows+=`<tr><td>Layer ${i}</td><td>${fmt(d)}</td></tr>`);
+  rows+=`<tr><td><b>Sum (not one expert)</b></td><td><b>${fmt(C.sum)}</b></td></tr></tbody></table>`;
+  document.getElementById('collapseTable').innerHTML=rows;
+}
+
+/* ── 2b. matrices ─────────────────────────────────────── */
+function matrix(id, data){
+  const host=document.getElementById(id);
+  const n=CATS.length;
+  host.innerHTML='';
+  const g=document.createElement('div');
+  g.className='matrix';
+  g.style.gridTemplateColumns=`auto repeat(${n},1fr)`;
+  g.appendChild(document.createElement('div'));
+  CATS.forEach(c=>{
+    const d=document.createElement('div'); d.className='mlab rot';
+    d.textContent=c.label; g.appendChild(d);
+  });
+  data.forEach((row,i)=>{
+    const lab=document.createElement('div'); lab.className='mlab';
+    lab.textContent=CATS[i].label; g.appendChild(lab);
+    row.forEach((v,j)=>{
+      const cell=document.createElement('div'); cell.className='mc';
+      cell.style.background=rampColor(v);
+      cell.style.color = v>0.55 ? '#fcfcfb' : 'var(--text-primary)';
+      cell.textContent=v.toFixed(2);
+      cell.addEventListener('mousemove',e=>showTip(e,
+        `<b>${CATS[i].label} ↔ ${CATS[j].label}</b><br><span class="m">cosine</span> ${v.toFixed(4)}`));
+      cell.addEventListener('mouseleave',hideTip);
+      g.appendChild(cell);
+    });
+  });
+  host.appendChild(g);
+}
+
+/* ── 3a. depth line ───────────────────────────────────── */
+function depth(){
+  const svg=document.getElementById('depth'); svg.innerHTML='';
+  const W=960,H=320,ml=48,mr=16,mt=14,mb=38, pw=W-ml-mr, ph=H-mt-mb;
+  const P=D.per_layer, n=P.length;
+  const x=l=>ml+(l/(n-1))*pw, y=v=>mt+ph-v*ph;
+  for(let i=0;i<=5;i++){
+    const v=i/5, yy=y(v);
+    el('line',{x1:ml,x2:W-mr,y1:yy,y2:yy,class:'grid-l'},svg);
+    el('text',{x:ml-9,y:yy+4,class:'axis-t','text-anchor':'end'},svg).textContent=v.toFixed(1);
+  }
+  el('line',{x1:ml,x2:W-mr,y1:mt+ph,y2:mt+ph,class:'base-l'},svg);
+  let up='',dn='';
+  P.forEach((p,i)=>{ up += (i?'L':'M')+x(p.layer)+' '+y(p.max)+' '; });
+  for(let i=n-1;i>=0;i--){ dn += 'L'+x(P[i].layer)+' '+y(P[i].min)+' '; }
+  el('path',{d:up+dn+'Z',fill:'var(--accent-soft)',opacity:.35},svg);
+  el('path',{d:P.map((p,i)=>(i?'L':'M')+x(p.layer)+' '+y(p.mean)).join(' '),
+             fill:'none',stroke:'var(--series-1)','stroke-width':2,
+             'stroke-linejoin':'round'},svg);
+
+  const lo=P.reduce((a,b)=>b.mean<a.mean?b:a);
+  el('circle',{cx:x(lo.layer),cy:y(lo.mean),r:4.5,fill:'var(--series-1)',
+               stroke:'var(--surface-1)','stroke-width':2},svg);
+  el('text',{x:x(lo.layer),y:y(lo.mean)+22,class:'axis-l','text-anchor':'middle',
+             'font-weight':'600'},svg).textContent=`most task-specific · L${lo.layer} (${lo.mean.toFixed(2)})`;
+  el('text',{x:x(0)+6,y:y(P[0].mean)-12,class:'axis-l','font-weight':'600'},svg)
+    .textContent=`L0 ${P[0].mean.toFixed(2)}`;
+
+  for(let l=0;l<n;l+=4) el('text',{x:x(l),y:H-14,class:'axis-t','text-anchor':'middle'},svg).textContent=l;
+  el('text',{x:ml+pw/2,y:H,class:'axis-l','text-anchor':'middle'},svg).textContent='layer';
+  el('text',{x:13,y:mt+ph/2,class:'axis-l','text-anchor':'middle',
+             transform:`rotate(-90 13 ${mt+ph/2})`},svg).textContent='agreement (cosine)';
+
+  const rect=el('rect',{x:ml,y:mt,width:pw,height:ph,fill:'transparent'},svg);
+  const cross=el('line',{x1:0,x2:0,y1:mt,y2:mt+ph,stroke:'var(--axis)','stroke-width':1,opacity:0},svg);
+  rect.addEventListener('mousemove',e=>{
+    const bb=svg.getBoundingClientRect();
+    const l=Math.max(0,Math.min(n-1,Math.round(((e.clientX-bb.left)/bb.width*W-ml)/pw*(n-1))));
+    const p=P[l];
+    cross.setAttribute('x1',x(l)); cross.setAttribute('x2',x(l)); cross.setAttribute('opacity',1);
+    showTip(e,`<b>Layer ${l}</b><br><span class="m">mean</span> ${p.mean.toFixed(3)}<br>`+
+              `<span class="m">range</span> ${p.min.toFixed(3)} – ${p.max.toFixed(3)}`);
+  });
+  rect.addEventListener('mouseleave',()=>{cross.setAttribute('opacity',0);hideTip();});
+
+  let rows='<table><thead><tr><th>Layer</th><th>Mean</th><th>Min pair</th><th>Max pair</th></tr></thead><tbody>';
+  P.forEach(p=>rows+=`<tr><td>Layer ${p.layer}</td><td>${p.mean.toFixed(3)}</td>`+
+    `<td>${p.min.toFixed(3)}</td><td>${p.max.toFixed(3)}</td></tr>`);
+  document.getElementById('depthTable').innerHTML=rows+'</tbody></table>';
+}
+
+/* ── 3b. heatmap ──────────────────────────────────────── */
+let heatCat = CATS[0].key;
+function heatmap(){
+  const cv=document.getElementById('heat'), ctx=cv.getContext('2d');
+  const rows=D.heat[heatCat], nL=rows.length, nS=rows[0].length;
+  const cssW=cv.clientWidth||940, cellH=14, cssH=nL*cellH;
+  const dpr=devicePixelRatio||1;
+  cv.width=cssW*dpr; cv.height=cssH*dpr; cv.style.height=cssH+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+  const cw=cssW/nS, cap=D.heat_cap;
+  for(let l=0;l<nL;l++) for(let s=0;s<nS;s++){
+    const v=rows[l][s]; if(!v) continue;
+    ctx.fillStyle=rampColor(Math.min(1,v/cap));
+    ctx.fillRect(s*cw, l*cellH, Math.max(cw-0.5,0.5), cellH-1);
+  }
+  document.getElementById('heatMaxLab').textContent='×'+cap.toFixed(0)+' of even';
+  document.getElementById('heatScale').style.background=rampCSS();
+  cv.onmousemove=e=>{
+    const b=cv.getBoundingClientRect();
+    const s=Math.floor((e.clientX-b.left)/(b.width/nS));
+    const l=Math.floor((e.clientY-b.top)/cellH);
+    if(l<0||l>=nL||s<0||s>=nS) return hideTip();
+    showTip(e,`<b>Layer ${l}, slot ${s}</b><br><span class="m">fired</span> `+
+              `${rows[l][s].toFixed(1)}× an even split`);
+  };
+  cv.onmouseleave=hideTip;
+}
+function heatChips(){
+  const host=document.getElementById('heatChips');
+  host.innerHTML=CATS.map((c,i)=>
+    `<button class="chip" data-k="${c.key}" aria-pressed="${c.key===heatCat}">`+
+    `<span class="sw" style="background:var(${SER[i]})"></span>${c.label}</button>`).join('');
+  host.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{
+    heatCat=b.dataset.k;
+    host.querySelectorAll('.chip').forEach(o=>o.setAttribute('aria-pressed', o.dataset.k===heatCat));
+    heatmap();
+  });
+}
+
+/* ── 4. corpus bars ───────────────────────────────────── */
+function corpus(){
+  const svg=document.getElementById('corpus'); svg.innerHTML='';
+  const W=960,H=260,ml=168,mr=64,mt=8,mb=34, pw=W-ml-mr, ph=H-mt-mb;
+  const rows=CATS.map(c=>({label:c.label,tr:D.tokens_train[c.key],te:D.tokens_test[c.key]}));
+  const max=Math.max(...rows.map(r=>r.tr+r.te));
+  const bh=ph/rows.length, bar=Math.min(26,bh*0.6);
+  for(let i=0;i<=4;i++){
+    const v=Math.round(max*i/4), xx=ml+(i/4)*pw;
+    el('line',{x1:xx,x2:xx,y1:mt,y2:mt+ph,class:'grid-l'},svg);
+    el('text',{x:xx,y:H-14,class:'axis-t','text-anchor':'middle'},svg).textContent=fmt(v);
+  }
+  el('line',{x1:ml,x2:ml,y1:mt,y2:mt+ph,class:'base-l'},svg);
+  rows.forEach((r,i)=>{
+    const y=mt+i*bh+(bh-bar)/2;
+    const wTr=(r.tr/max)*pw, wTe=(r.te/max)*pw;
+    el('text',{x:ml-12,y:y+bar/2+4,class:'axis-l','text-anchor':'end'},svg).textContent=r.label;
+    const a=el('rect',{x:ml,y,width:Math.max(2,wTr),height:bar,rx:3,fill:'var(--series-1)'},svg);
+    /* 2px surface gap between the two segments, not a border */
+    const b=el('rect',{x:ml+wTr+2,y,width:Math.max(2,wTe-2),height:bar,rx:3,fill:'var(--accent-soft)'},svg);
+    a.addEventListener('mousemove',e=>showTip(e,`<b>${r.label} · train</b><br>${fmt(r.tr)} decode tokens`));
+    b.addEventListener('mousemove',e=>showTip(e,`<b>${r.label} · test</b><br>${fmt(r.te)} decode tokens`));
+    [a,b].forEach(n=>n.addEventListener('mouseleave',hideTip));
+    el('text',{x:ml+wTr+wTe+10,y:y+bar/2+4,class:'axis-l'},svg).textContent=fmt(r.tr+r.te);
+  });
+  el('text',{x:ml+pw/2,y:H,class:'axis-l','text-anchor':'middle'},svg).textContent='decode tokens';
+
+  let t='<table><thead><tr><th>Category</th><th>Train prompts</th><th>Test prompts</th>'+
+        '<th>Train tokens</th><th>Test tokens</th></tr></thead><tbody>';
+  rows.forEach(r=>t+=`<tr><td>${r.label}</td><td>16</td><td>4</td>`+
+    `<td>${fmt(r.tr)}</td><td>${fmt(r.te)}</td></tr>`);
+  t+=`<tr><td><b>Total</b></td><td><b>80</b></td><td><b>20</b></td>`+
+     `<td><b>${fmt(rows.reduce((a,r)=>a+r.tr,0))}</b></td>`+
+     `<td><b>${fmt(rows.reduce((a,r)=>a+r.te,0))}</b></td></tr></tbody></table>`;
+  document.getElementById('corpusTable').innerHTML=t;
+}
+
+function drawAll(){
+  kpis(); oneToken(); collapse();
+  matrix('simExpert', D.sim_expert); matrix('simSlot', D.sim_slot);
+  document.getElementById('simScale').style.background=rampCSS();
+  depth(); heatChips(); heatmap(); corpus();
+}
+drawAll();
+addEventListener('resize', ()=>{ heatmap(); });
+
+const btn=document.getElementById('theme');
+function syncLabel(){ btn.textContent = isDark() ? 'Light' : 'Dark'; }
+syncLabel();
+btn.onclick=()=>{
+  document.documentElement.setAttribute('data-theme', isDark() ? 'light' : 'dark');
+  syncLabel(); drawAll();
+};
+})();
+</script>
+</body>
+</html>

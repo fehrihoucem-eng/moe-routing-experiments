@@ -8,3 +8,6 @@ data/traces/*.trace
 *.egg-info/
 build/
 dist/
+
+# derived: inlined into site/routing.html by scripts/export_site_data.py
+site/data.json
