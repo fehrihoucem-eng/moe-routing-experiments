@@ -20,10 +20,11 @@ from routetrace.predict import (
     fit_tables,
     folds,
     grid_rows,
+    lag_rows,
     load_routing,
     score,
 )
-from routetrace.predict import _pair_counts
+from routetrace.predict import _history_mass, _pair_counts
 
 SERVE_TRACE = Path(__file__).resolve().parent / "fixtures/serve3.trace"
 N_EXPERTS = 32
@@ -290,6 +291,101 @@ def test_persistence_fills_the_budget_above_top_k_with_popularity():
     assert np.all(np.diff(pop) <= 0)
 
 
+# --- lags -------------------------------------------------------------------
+
+
+def test_lag_rows_never_reaches_into_another_prompt():
+    r = _routing(n_prompts=4, n_tokens=6)
+    for lag in (1, 2, 4):
+        src = lag_rows(r, lag)
+        have = src >= 0
+        assert np.array_equal(have, r.token_id >= lag)
+        assert np.all(r.prompt_id[src[have]] == r.prompt_id[have])
+        assert np.all(r.token_id[src[have]] == r.token_id[have] - lag)
+
+
+def test_a_lag_deeper_than_the_prompt_is_available_nowhere():
+    r = _routing(n_prompts=4, n_tokens=6)
+    assert np.all(lag_rows(r, 6) < 0)
+
+
+def test_history_at_lag_one_is_persistence_exactly():
+    """The control the whole lag experiment rests on: if ``history`` at (1,) were
+    merely close to persistence, a gap at (1, 2, 4) could be the encoding rather
+    than the older Tokens."""
+    r = _routing()
+    tables = fit_tables(r, np.arange(r.n_tokens))
+    rows = grid_rows(r, np.arange(r.n_tokens))
+    for layer in (1, 2):
+        want = score("persistence", r, tables, rows, layer)
+        for decay in (0.0, 0.5, 1.0):
+            got = score("history", r, tables, rows, layer, lags=(1,), decay=decay)
+            assert np.allclose(got, want)
+        assert np.allclose(score("history_priority", r, tables, rows, layer, lags=(1,)), want)
+
+
+def test_a_union_ranked_by_recency_is_persistence_at_the_routers_own_k():
+    """Strict tiers mean the union cannot displace a Slot t-1 named, only fill
+    the Budget above it -- so every priority row must tie persistence at K=top_k
+    and can only differ above it. If one ever does not, the tiering is broken."""
+    r = _routing()
+    tables = fit_tables(r, np.arange(r.n_tokens))
+    rows = grid_rows(r, np.arange(r.n_tokens), max_lag=4)
+    actual = r.slots[rows, 1].astype(np.int64)
+
+    s = score("history_priority", r, tables, rows, 1, lags=(1, 2, 4))
+    base = coverage(score("persistence", r, tables, rows, 1), actual, budgets=(TOP_K,))
+    assert np.allclose(coverage(s, actual, budgets=(TOP_K,)), base)
+
+    # Above K=top_k it names the union and nothing else, until the union runs
+    # out. Whether those Slots are worth naming is the experiment's question;
+    # that they are the ones named is the invariant.
+    ranked = np.argsort(-s, axis=1, kind="stable")
+    for i, row in enumerate(rows):
+        union = set()
+        for lag in (1, 2, 4):
+            union |= set(r.slots[lag_rows(r, lag)[row], 1].tolist())
+        assert set(ranked[i, : len(union)].tolist()) == union
+        assert set(ranked[i, :TOP_K].tolist()) == set(r.slots[r.prev[row], 1].tolist())
+
+
+def test_the_history_vote_accumulates_a_slot_named_at_several_lags():
+    """Recurrence across lags is the only thing older history can say that t-1
+    cannot, so it has to actually add rather than overwrite."""
+    r = _routing(n_prompts=1, n_tokens=5)
+    r.slots[1, 0] = r.slots[3, 0]  # t-2 repeats what t-4 selected, for row 3...
+    rows = np.array([3])
+    tables = fit_tables(r, np.arange(r.n_tokens))
+    mass = _history_mass(r, rows, 0, lags=(1, 2), decay=1.0)
+    assert np.isclose(mass.sum(), 1.0)
+
+    shared = set(r.slots[2, 0].tolist()) & set(r.slots[1, 0].tolist())
+    for j in shared:
+        contrib = 0.5 * (r.gates[2, 0][list(r.slots[2, 0]).index(j)]
+                         + r.gates[1, 0][list(r.slots[1, 0]).index(j)])
+        assert mass[0, j] > 0 and np.isclose(mass[0, j], contrib / mass.sum(), rtol=1e-5)
+
+
+def test_scoring_a_lag_the_grid_does_not_support_raises():
+    """Silently scoring t-4 only where it exists, while t-1 scores everywhere,
+    would decide the comparison on the grid. It has to be an error."""
+    r = _routing()
+    tables = fit_tables(r, np.arange(r.n_tokens))
+    rows = grid_rows(r, np.arange(r.n_tokens), max_lag=1)
+    with pytest.raises(ValueError, match="t-4 is undefined"):
+        score("history", r, tables, rows, 1, lags=(1, 4))
+    with pytest.raises(ValueError, match="t-4 is undefined"):
+        score("history_priority", r, tables, rows, 1, lags=(1, 4))
+
+
+def test_decay_zero_collapses_a_union_onto_the_most_recent_token():
+    r = _routing()
+    tables = fit_tables(r, np.arange(r.n_tokens))
+    rows = grid_rows(r, np.arange(r.n_tokens), max_lag=4)
+    collapsed = score("history", r, tables, rows, 1, lags=(1, 2, 4), decay=0.0)
+    assert np.allclose(collapsed, score("persistence", r, tables, rows, 1))
+
+
 # --- the grid and the folds -------------------------------------------------
 
 
@@ -298,6 +394,14 @@ def test_grid_rows_drops_every_prompts_first_token():
     rows = grid_rows(r, np.arange(r.n_tokens))
     assert np.all(r.token_id[rows] > 0)
     assert rows.size == r.n_tokens - len(np.unique(r.prompt_id))
+
+
+def test_a_deeper_grid_drops_every_prompts_opening_tokens():
+    r = _routing(n_prompts=4, n_tokens=6)
+    for max_lag in (1, 2, 4):
+        rows = grid_rows(r, np.arange(r.n_tokens), max_lag=max_lag)
+        assert np.all(r.token_id[rows] >= max_lag)
+        assert rows.size == r.n_tokens - max_lag * len(np.unique(r.prompt_id))
 
 
 @pytest.mark.skipif(not SERVE_TRACE.exists(), reason="serve3.trace fixture not present")

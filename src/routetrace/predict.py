@@ -11,8 +11,12 @@ Predictors differ in their **Horizon**, and only Predictors sharing one are
 comparable:
 
 ``token``
-    Everything about Token t-1, known ~50 ms before Token t enters the model at
-    all (40 Layers at ~20 tok/s). ``popularity``, ``persistence``, ``prev_token``.
+    Everything about the Tokens before t, known ~50 ms before Token t enters the
+    model at all (40 Layers at ~20 tok/s) and longer still for the older ones.
+    ``popularity``, ``persistence``, ``prev_token``, ``history``,
+    ``history_priority``. A lag costs nothing extra in lead time -- t-4 was known
+    200 ms ago -- so within this Horizon reaching further back is free, and the
+    only question is whether it says anything t-1 has not already said.
 ``layer``
     That, plus the current Token's Slots one Layer down -- ~1.25 ms of warning.
     ``cross_layer`` and the combination.
@@ -250,6 +254,8 @@ def score(
     alpha: float = 10.0,
     beta: float = 0.0,
     w: float = 0.5,
+    lags: tuple[int, ...] = (1,),
+    decay: float = 1.0,
 ) -> np.ndarray:
     """``[len(rows), n_experts]`` scores for one Predictor at one target Layer.
 
@@ -283,6 +289,20 @@ def score(
         a = score("prev_token", r, tables, rows, layer, alpha, beta)
         b = score("cross_layer", r, tables, rows, layer, alpha, beta)
         return w * a + (1.0 - w) * b
+    if name == "history":
+        return _history(r, rows, layer, pop, lags, decay)
+    if name == "history_priority":
+        return _history_priority(r, rows, layer, pop, lags)
+    if name == "cross_layer_history":
+        # The history side enters as its own mass, not as the ranked form: a
+        # mixture needs two distributions on one scale, and _history's (1, 2]
+        # encoding is an ordering, not a scale. Popularity is left out of the
+        # history term entirely here because the cross-layer term already
+        # scores every Slot.
+        h = _history_mass(r, rows, layer, lags, decay)
+        b = _mixture(tables.cross[layer], pop, _cond(r, rows, layer - 1),
+                     _gates(r, rows, layer - 1), alpha, beta)
+        return w * h + (1.0 - w) * b
     raise ValueError(f"unknown predictor {name!r}")
 
 
@@ -311,6 +331,129 @@ def _raw_counts(counts, pop, cond_slots, top_m: int = 16):
     for k in range(cond_slots.shape[1]):
         out += keep[cond_slots[:, k]]
     out += pop[None, :]
+    return out / out.sum(axis=1, keepdims=True)
+
+
+def lag_rows(r: Routing, lag: int) -> np.ndarray:
+    """``[n_tokens]`` row index of the Token ``lag`` positions back, or -1.
+
+    Built by walking ``prev`` ``lag`` times rather than by subtracting from
+    ``token_id``, so it inherits that field's Prompt-boundary guarantee instead
+    of re-deriving it: a Token 3 positions into its Prompt has no t-4, even
+    though a row 4 earlier in the array exists and belongs to another Prompt.
+    Walking also stays correct if a ``categories=`` filter has removed Prompts
+    from between.
+    """
+    if lag < 1:
+        raise ValueError(f"lag must be >= 1, got {lag}")
+    idx = np.arange(r.n_tokens, dtype=np.int64)
+    for _ in range(lag):
+        idx = np.where(idx >= 0, r.prev[np.maximum(idx, 0)], -1)
+    return idx
+
+
+def _lag_weights(lags, decay: float) -> tuple[tuple[int, ...], np.ndarray]:
+    """``decay ** (lag - 1)``, normalised to sum to 1.
+
+    Geometric in the Token distance, not in the position within ``lags``, so the
+    weight a lag receives does not change when a different lag is added beside
+    it -- ``t-4`` is weighted the same in ``(1, 4)`` as in ``(1, 2, 4)``, which
+    is what makes those two rows of the result comparable. ``decay = 1`` is an
+    equal vote; ``decay = 0`` collapses to ``t-1`` alone, which is the identity
+    that makes every union here a superset of persistence rather than a rival
+    to it.
+    """
+    lags = tuple(sorted({int(x) for x in lags}))
+    if not lags:
+        raise ValueError("lags must name at least one Token distance")
+    w = np.array([float(decay) ** (x - 1) for x in lags], dtype=np.float64)
+    if w.sum() <= 0:
+        raise ValueError(f"lags {lags} at decay={decay} carry no weight")
+    return lags, w / w.sum()
+
+
+def _history_mass(r: Routing, rows: np.ndarray, layer: int, lags, decay: float) -> np.ndarray:
+    """``sum_lag w(lag) * gate_{t-lag}(j)``: a distribution over Slots, from history alone.
+
+    Each lag contributes its own renormalised gate vector, so the result sums to
+    1 and is directly mixable with a fitted Predictor's scores. A Slot selected
+    at several lags accumulates -- that accumulation *is* the hypothesis under
+    test, since a Slot the Router keeps returning to is the only thing older
+    history can say that ``t-1`` cannot.
+
+    Slots named at no lag score exactly 0. That is deliberate: this function is
+    the evidence from history and nothing else, and a caller who wants the
+    remaining Budget filled adds the filler it prefers (:func:`_history` uses
+    popularity, ``cross_layer_history`` uses the Layer below).
+    """
+    lags, weights = _lag_weights(lags, decay)
+    out = np.zeros((rows.size, r.n_experts), dtype=np.float64)
+    buf = np.empty_like(out)
+    for weight, lag in zip(weights, lags):
+        src = lag_rows(r, lag)[rows]
+        missing = int((src < 0).sum())
+        if missing:
+            raise ValueError(
+                f"t-{lag} is undefined for {missing} of {rows.size} scored rows; "
+                f"restrict the grid with grid_rows(..., max_lag={max(lags)}) so "
+                "every lag scores the same cells"
+            )
+        buf.fill(0.0)
+        np.put_along_axis(
+            buf,
+            r.slots[src, layer].astype(np.int64),
+            weight * r.gates[src, layer].astype(np.float64),
+            axis=1,
+        )
+        out += buf
+    return out / out.sum(axis=1, keepdims=True)
+
+
+def _history(r: Routing, rows: np.ndarray, layer: int, pop: np.ndarray, lags, decay: float):
+    """The history vote, ranked, with popularity filling the Budget below it.
+
+    Same encoding as :func:`_persistence` -- carried Slots in ``(1, 2]``, the
+    rest in ``[0, 1)`` -- so that ``lags=(1,)`` reproduces persistence exactly
+    at every Budget rather than approximately. That identity is the control for
+    this whole experiment: any gap between ``history`` at ``(1,)`` and at
+    ``(1, 2, 4)`` is older history and cannot be anything else.
+    """
+    mass = _history_mass(r, rows, layer, lags, decay)
+    floor = np.repeat((pop / (pop.max() + 1.0))[None, :], rows.size, axis=0)
+    out = np.where(mass > 0.0, 1.0 + mass, floor)
+    return out / out.sum(axis=1, keepdims=True)
+
+
+def _history_priority(r: Routing, rows: np.ndarray, layer: int, pop: np.ndarray, lags):
+    """The literal set union, ranked newest-Token-first: t-1's 8, then t-2's, then t-4's.
+
+    Recency is a strict tier, so at K=8 this *is* persistence -- the union
+    cannot displace a Slot t-1 named, only fill the Budget above it. That makes
+    the priority rows answer one question cleanly ("does older history fill a
+    surplus Budget better than popularity does?") and say nothing at all about
+    the other ("can older history improve the ranking?"), which is what the vote
+    rows are for. Reporting both is the only way to tell those two apart.
+
+    Within a tier the ordering is that Token's own gates, and a Slot named at
+    several lags takes its most recent tier: lags are written oldest-first so
+    the newest overwrites.
+    """
+    lags = tuple(sorted({int(x) for x in lags}))
+    out = np.repeat((pop / (pop.max() + 1.0))[None, :], rows.size, axis=0)
+    for i in range(len(lags) - 1, -1, -1):
+        src = lag_rows(r, lags[i])[rows]
+        missing = int((src < 0).sum())
+        if missing:
+            raise ValueError(
+                f"t-{lags[i]} is undefined for {missing} of {rows.size} scored rows; "
+                f"restrict the grid with grid_rows(..., max_lag={max(lags)})"
+            )
+        np.put_along_axis(
+            out,
+            r.slots[src, layer].astype(np.int64),
+            (len(lags) - i) + r.gates[src, layer].astype(np.float64),
+            axis=1,
+        )
     return out / out.sum(axis=1, keepdims=True)
 
 
@@ -383,12 +526,19 @@ def folds(store_dir: str | Path, n_folds: int = 5, seed: int = 0) -> list[np.nda
     return [np.array(sorted(f)) for f in out]
 
 
-def grid_rows(r: Routing, rows: np.ndarray) -> np.ndarray:
-    """Restrict ``rows`` to the scoring grid: Tokens that have a predecessor.
+def grid_rows(r: Routing, rows: np.ndarray, max_lag: int = 1) -> np.ndarray:
+    """Restrict ``rows`` to the scoring grid: Tokens that have ``max_lag`` predecessors.
 
     The Layer half of the grid (1..39) is enforced by the caller's Layer loop.
     Together they are the common grid of ADR-0003: every Predictor scores the
     same cells, because a Predictor handed cells its rivals cannot enter wins on
     the arithmetic rather than on the signal.
+
+    ``max_lag`` is the deepest history any Predictor in the comparison reaches
+    back to, and it must be set from the *comparison*, not from the Predictor
+    being scored. Letting t-8 score only where 8 predecessors exist while t-1
+    scores everywhere would hand them different cells -- and not randomly
+    different ones, since the dropped cells are every Prompt's opening Tokens,
+    which is exactly where routing has the least history to be predicted from.
     """
-    return rows[r.prev[rows] >= 0]
+    return rows[lag_rows(r, max_lag)[rows] >= 0]

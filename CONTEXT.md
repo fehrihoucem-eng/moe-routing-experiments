@@ -131,11 +131,17 @@ _Avoid_: model, estimator, baseline
 
 **Horizon**:
 How much a Predictor knows when it fires. `token` means everything about the
-previous Token, known before the current Token enters the model at all; `layer`
-means that plus the current Token's Experts at the Layer below. Two Predictors
-are only comparable within one Horizon, because the wider Horizon is strictly
-more information.
+Tokens before this one, known before the current Token enters the model at all;
+`layer` means that plus the current Token's Experts at the Layer below. Two
+Predictors are only comparable within one Horizon, because the wider Horizon is
+strictly more information.
 _Avoid_: lookahead, context, window
+
+**Lag**:
+How many Tokens back a `token`-Horizon Predictor reaches, written t-1, t-2, t-4.
+A Lag is not a Horizon: every Lag is available at the same moment, so reaching
+further back costs no lead time and buys no wider Horizon.
+_Avoid_: window, order, history length
 
 **Budget**:
 How many Slots a Predictor names, written K. Distinct from the Router's own 8,
