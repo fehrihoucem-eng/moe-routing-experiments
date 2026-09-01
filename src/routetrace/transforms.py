@@ -21,18 +21,42 @@ def binarize(X: np.ndarray) -> np.ndarray:
     return (X != 0).astype(X.dtype)
 
 
-def layer_histogram(X: np.ndarray) -> np.ndarray:
-    """[layers, n_experts] selection counts summed over tokens."""
+def expert_histogram(X: np.ndarray) -> np.ndarray:
+    """[layers, n_experts] selection counts per Expert, summed over tokens.
+
+    An Expert is a (layer, slot) pair, not a slot index: each of the 40 layers
+    owns its own 256 experts, which is why colibri accounts for 10,240 of them.
+    Slot 151 of layer 0 and slot 151 of layer 20 are different weight matrices,
+    so this keeps the layer axis. See :func:`slot_histogram`.
+    """
     return binarize(X).sum(axis=0)
 
 
-def expert_histogram(X: np.ndarray) -> np.ndarray:
-    """[n_experts] selection counts summed over tokens and layers."""
+def slot_histogram(X: np.ndarray) -> np.ndarray:
+    """[n_experts] selection counts per slot index, summed over tokens AND layers.
+
+    This collapses 40 distinct Experts onto each index, so it measures router
+    *index* bias, not how busy any expert is. It is almost never the statistic
+    you want -- reach for :func:`expert_histogram` unless you specifically mean
+    "does the router favour low indices".
+    """
     return binarize(X).sum(axis=(0, 1))
 
 
+def expert_profile(X: np.ndarray) -> np.ndarray:
+    """[layers * n_experts] selection frequency per Expert, summing to 1.
+
+    The comparable form: two sets of tokens of different sizes give profiles you
+    can take a distance between. Flattened so that each entry is one Expert.
+    """
+    h = expert_histogram(X).astype(np.float64).ravel()
+    total = h.sum()
+    return h / total if total else h
+
+
 def gate_mass(X: np.ndarray) -> np.ndarray:
-    """[layers, n_experts] total gate mass, i.e. histogram weighted by gate."""
+    """[layers, n_experts] total gate mass per Expert, i.e. the gate-weighted
+    counterpart of :func:`expert_histogram`."""
     return X.sum(axis=0)
 
 

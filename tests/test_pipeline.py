@@ -205,8 +205,29 @@ def _toy():
 def test_binarize_and_histograms():
     X = _toy()
     assert T.binarize(X).sum() == 4
-    assert T.expert_histogram(X).tolist() == [0, 1, 0, 2, 0, 1, 0, 0]
+    # expert_histogram keeps the layer axis: an Expert is a (layer, slot) pair
+    assert T.expert_histogram(X).shape == (1, 8)
+    assert T.expert_histogram(X)[0].tolist() == [0, 1, 0, 2, 0, 1, 0, 0]
     assert T.gate_mass(X)[0, 3] == pytest.approx(0.75)
+
+
+def test_slot_histogram_collapses_layers_and_expert_histogram_does_not():
+    """The distinction that made an earlier analysis wrong: slot 1 of layer 0
+    and slot 1 of layer 1 are different Experts and must not be summed."""
+    X = np.zeros((1, 2, 4), dtype=np.float32)
+    X[0, 0, 1] = 1.0
+    X[0, 1, 1] = 1.0
+    assert T.expert_histogram(X).shape == (2, 4)
+    assert T.expert_histogram(X)[0, 1] == 1 and T.expert_histogram(X)[1, 1] == 1
+    assert T.slot_histogram(X).shape == (4,)
+    assert T.slot_histogram(X)[1] == 2  # two different Experts, one index
+
+
+def test_expert_profile_is_normalised_over_experts():
+    X = _toy()
+    p = T.expert_profile(X)
+    assert p.shape == (1 * 8,)
+    assert p.sum() == pytest.approx(1.0)
 
 
 def test_topk_mask_then_renormalize():

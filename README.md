@@ -1,5 +1,8 @@
 # moe-routing-experiments
 
+> Vocabulary lives in [CONTEXT.md](./CONTEXT.md); decisions in [docs/adr/](./docs/adr/).
+> Note **Expert** means a (layer, slot) pair — a slot number alone names 40 different Experts.
+
 Routing-tensor experiments on Qwen3.6-35B-A3B, captured from
 [colibri](https://github.com/JustVugg/colibri)'s `ROUTE_TRACE` stream.
 
@@ -24,7 +27,7 @@ from routetrace import transforms as T
 build_store(["data/traces/serve3.trace"], "data/stores/serve3")
 X, index = load_X("data/stores/serve3")          # decode only, [45, 40, 256]
 
-T.expert_histogram(X)                            # [256]  selections per expert
+T.expert_histogram(X)                            # [40, 256] per Expert (layer, slot)
 T.cooccurrence(X, layer=12)                      # [256, 256] within-layer
 T.transition(X, layer=12, delta=1)               # [256, 256] cross-layer
 ```
@@ -174,9 +177,9 @@ src/routetrace/
   store.py       parquet store
   tensor.py      load_X, COO, to_torch, prompt_slices, describe
   splits.py      make_split / read_split: stratified train-test by prompt
-  transforms.py  transforms of X
+  transforms.py  transforms of X (expert_histogram keeps the layer axis)
   capture.py     SERVE-mode driver + chat template
-tests/           31 tests; fixtures/serve3.trace is a real 3-prompt capture
+tests/           33 tests; fixtures/serve3.trace is a real 3-prompt capture
 patches/         the colibri engine change
 prompts/         corpus_v1.json
 scripts/         capture_corpus.py
