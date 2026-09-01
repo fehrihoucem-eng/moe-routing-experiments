@@ -50,6 +50,45 @@ adds it, against colibri `184e052`. On this machine the build needs both overrid
 make -C c qwen36 CUDA=1 CUDA_HOME=/usr CUDA_ARCH=compute_90
 ```
 
+`CUDA_HOME=/usr` because nvcc is the distro package at `/usr/bin/nvcc`, not
+`/usr/local/cuda`. `CUDA_ARCH=compute_90` because nvcc is 12.4 and the RTX 5090
+is sm_120, which needs CUDA >= 12.8; the driver JITs the compute_90 PTX at load.
+The default `-arch=native` fails outright with "Unsupported gpu architecture
+'compute_120'".
+
+**Do not set `COLI_CUDA_TC_INT4=1`.** It is off by default. It selects a kernel
+using the experimental sub-byte `wmma::...::s4` API, whose Blackwell JIT support
+was never verified here.
+
+## Running the engine
+
+The container lives at `~/Models/qwen36_i4_gs64` (22 GB, int4 gs64). The engine
+binary is `~/colibri/c/qwen36`. A **Capture** needs the CUDA tier switched on:
+
+```sh
+COLI_CUDA=1 COLI_GPUS=0 CUDA_EXPERT_GB=auto \
+HEAT_FILE=~/colibri-run/heat.bin OMP_NUM_THREADS=16 \
+OMP_WAIT_POLICY=ACTIVE OMP_PROC_BIND=close
+```
+
+`HEAT_FILE` persists the placement heat table, so a second run warmstarts fully
+placed. All 10,240 **Experts** fit in the 5090's VRAM budget; expect ~20 tok/s
+and ~22 GB peak RSS. `scripts/capture_corpus.py` sets all of this already —
+prefer editing it over assembling the variables by hand.
+
+**SERVE mode takes raw text and adds nothing.** The chat template lives in the
+gateway (`c/openai_server.py:render_chat_qwen`), so a driver must render it
+itself. `routetrace.capture.render_chat` does. Skip it and the model emits
+nothing at all: the bare `assistant\n` state is untrained, and greedy argmax
+there lands on an EOS special.
+
+**`coli chat` rejects every message unless you bound the generation.**
+`serve_one()` refuses when `n_prompt_tokens + max_tok > max_ctx`, and `coli chat`
+asks for `max_tokens` equal to the whole 8192 context — so any **Prompt**
+overflows it and returns HTTP 400 with a message that reads backwards. Use
+`coli chat --model <dir> --ngen 128`. The server it starts stays warm on port
+8000; `python3 c/coli stop` shuts it down.
+
 ## Commands
 
 ```sh
