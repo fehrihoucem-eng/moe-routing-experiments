@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How far back does routing history reach? — corpus_v1</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-0: #f4f4f2;
+    --surface-1: #fcfcfb;
+    --surface-2: #eeeeeb;
+    --border:    #dedcd6;
+    --border-strong: #c3c1b8;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #78766f;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    /* Ordinal depth ramp: early -> late is ordered, so it takes one hue at
+       three monotone steps rather than three categorical hues. */
+    --depth-1: #86b6ef;
+    --depth-2: #2a78d6;
+    --depth-3: #104281;
+    --grid: #e6e5e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --surface-2: #232322;
+      --border:    #33322f;
+      --border-strong: #4a4945;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #94938a;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --depth-1: #184f95;
+      --depth-2: #3987e5;
+      --depth-3: #9ec5f4;
+      --grid: #2b2b29;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #232322;
+    --border: #33322f; --border-strong: #4a4945;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #94938a;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --series-4: #c98500; --series-5: #d55181;
+    --depth-1: #184f95; --depth-2: #3987e5; --depth-3: #9ec5f4;
+    --grid: #2b2b29;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root {
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    padding: 28px 20px 64px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 25px; line-height: 1.25; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 17px; margin: 40px 0 6px; letter-spacing: -0.005em; }
+  h3 { font-size: 14px; margin: 22px 0 4px; color: var(--text-secondary); font-weight: 600; }
+  .sub { color: var(--text-secondary); margin: 0 0 4px; font-size: 14px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .tag {
+    display: inline-block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 9px; margin-bottom: 14px;
+  }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 22px 0 8px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .tile .v { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .tile .n { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  table { border-collapse: collapse; width: 100%; background: var(--surface-1);
+          border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 14px; }
+  th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--border); }
+  th { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase;
+       color: var(--text-secondary); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; }
+  td .sd { color: var(--text-muted); font-size: 11.5px; margin-left: 3px; }
+  tr.ref td { color: var(--text-secondary); font-style: italic; }
+  td.hi { font-weight: 700; }
+  td.zero { color: var(--text-muted); }
+  tr.group td { background: var(--surface-2); font-size: 11.5px; letter-spacing: .04em;
+                text-transform: uppercase; color: var(--text-secondary); font-weight: 600; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+  .swatch.dash { background: none; border-top: 2px dashed var(--text-muted); height: 0; border-radius: 0; width: 12px; vertical-align: 3px; }
+  .swatch.none { background: none; }
+  .cap { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; }
+
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 14px 0 6px; }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 13px; padding: 5px 12px; background: var(--surface-1);
+    color: var(--text-secondary); border: none; border-right: 1px solid var(--border); cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); font-weight: 600; }
+  .seg-label { font-size: 12.5px; color: var(--text-secondary); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }
+  .legend button, .legend span.static {
+    display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 13px;
+    background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 12px 4px 9px;
+  }
+  .legend button { cursor: pointer; }
+  .legend button[aria-pressed="false"] { color: var(--text-muted); border-style: dashed; }
+  .legend button[aria-pressed="false"] .swatch { opacity: .3; }
+
+  .chartbox { position: relative; margin-top: 8px; }
+  svg { display: block; width: 100%; height: auto; }
+  .tip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
+    background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 20px rgba(0,0,0,.14); min-width: 178px;
+  }
+  .tip h4 { margin: 0 0 6px; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+  .tip .row { display: flex; align-items: center; gap: 7px; justify-content: space-between; }
+  .tip .row span.l { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .tip .row span.v { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .notes { margin-top: 10px; font-size: 13.5px; color: var(--text-secondary); }
+  .notes li { margin-bottom: 7px; }
+  .band { display: grid; grid-template-columns: 104px 1fr; gap: 10px 14px; align-items: baseline; font-size: 13.5px; margin-top: 4px; }
+  .band .r { font-family: ui-monospace, monospace; color: var(--text-primary); font-weight: 600; }
+  .band .d { color: var(--text-secondary); }
+  .caveat { border-left: 3px solid var(--border-strong); padding-left: 14px; color: var(--text-secondary); font-size: 13.5px; }
+  .themetog { float: right; font-size: 12px; color: var(--text-secondary); background: none;
+              border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-family: inherit; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+
+  <button class="themetog" id="themetog">theme</button>
+  <div class="tag">corpus_v1 · train split only · decode · tokens with 8 predecessors</div>
+  <h1>How far back does routing history reach?</h1>
+  <p class="sub">
+    Every predictor here is built only from tokens the model has already finished &mdash; t&minus;1, t&minus;2,
+    t&minus;4, t&minus;8 &mdash; and a <strong>lag is not a horizon</strong>: t&minus;4 was known 200&nbsp;ms ago
+    at 20&nbsp;tok/s, so reaching further back costs nothing in lead time. The only question is whether older
+    tokens say anything t&minus;1 has not already said. <span id="gridnote"></span>
+  </p>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="k">Older tokens, at the router's own K=8</div>
+      <div class="v" id="t1">&mdash;</div>
+      <div class="n" id="t1n">&mdash;</div>
+    </div>
+    <div class="tile">
+      <div class="k">Older tokens, at K=16</div>
+      <div class="v" id="t2">&mdash;</div>
+      <div class="n" id="t2n">&mdash;</div>
+    </div>
+    <div class="tile">
+      <div class="k">Best predictor on this grid</div>
+      <div class="v" id="t3">&mdash;</div>
+      <div class="n">cross-layer + history, <span class="mono" id="t3n"></span></div>
+    </div>
+  </div>
+
+  <h2>One token back is worth far more than the next seven</h2>
+  <p class="sub">
+    Each row copies the slots of exactly one earlier token, ranked by the gates it gave them, with popularity
+    filling the budget below. Coverage@K pooled over layers 1&ndash;39, macro-averaged by prompt;
+    <span class="mono">&plusmn;</span> is the standard deviation across the 5 folds.
+  </p>
+  <table>
+    <thead><tr><th>Predictor</th><th>Coverage@8</th><th>Coverage@12</th><th>Coverage@16</th></tr></thead>
+    <tbody id="lagtbody"></tbody>
+  </table>
+  <p class="cap">
+    A token eight back still names <span id="t8x"></span> as many of the router's experts as
+    layer popularity does. Routing does not decorrelate inside this window &mdash; it decays to a high floor.
+    That floor is the trap: a predictor can look strong alone and still be redundant.
+  </p>
+
+  <h2>Routing memory is longest in the middle of the stack</h2>
+  <p class="sub">
+    Coverage@8 against lag, averaged within each third of the stack. The x-axis is
+    <span class="mono">log&#8322;</span> lag, so equal spacing is equal doubling &mdash; a straight line is
+    exponential decay. Flatter means longer memory.
+  </p>
+  <div class="legend" id="memlegend"></div>
+  <div class="panel chartbox">
+    <svg id="memchart" viewBox="0 0 940 340" role="img" aria-labelledby="memtitle">
+      <title id="memtitle">Coverage at K=8 against token lag, for three depth bands</title>
+    </svg>
+    <div class="tip" id="memtip"></div>
+  </div>
+  <p class="cap">
+    The mid-stack does not merely persist more strongly from t&minus;1 &mdash; it <em>decays more slowly</em>,
+    holding <span id="midratio"></span> of its t&minus;1 coverage at t&minus;8 where both ends hold about 60%.
+    Across the 39 layers the correlation between a layer's t&minus;1 coverage and its t&minus;8/t&minus;1 ratio is
+    <strong>+0.65</strong>: layers that remember the previous token also remember the one before that.
+  </p>
+
+  <h2>Unions: older tokens extend the list, they do not re-rank it</h2>
+  <p class="sub">
+    Two ways to rank a union, because &ldquo;does older history help?&rdquo; is two questions.
+    <strong>Priority</strong> is the literal set union, newest token first &mdash; at K=8 it <em>is</em> t&minus;1
+    by construction, so it can only say whether older tokens fill a surplus budget better than popularity does.
+    <strong>Vote</strong> weights a slot by <span class="mono">decay<sup>lag&minus;1</sup></span> times its gate and
+    sums, so older tokens can reorder t&minus;1's own eight &mdash; the only rule that can improve the ranking, and
+    the only one that can lose.
+  </p>
+  <table>
+    <thead><tr><th>Predictor</th><th>Coverage@8</th><th>Coverage@12</th><th>Coverage@16</th></tr></thead>
+    <tbody id="uniontbody"></tbody>
+  </table>
+
+  <h3>Which gaps are real</h3>
+  <p class="sub">
+    Paired per-fold differences, in percentage points. Every predictor saw the same five folds, so these resolve
+    far finer than the unpaired <span class="mono">&plusmn;</span> above. The range is across the five folds.
+  </p>
+  <table>
+    <thead><tr><th>Comparison</th><th>K=8</th><th>K=12</th><th>K=16</th></tr></thead>
+    <tbody id="pairtbody"></tbody>
+  </table>
+  <p class="cap">
+    <strong>Voting cannot beat copying at K=8</strong> &mdash; the three-lag vote's fold range straddles zero and
+    the two-lag vote loses in all five folds. Whatever a slot's recurrence across t&minus;1, t&minus;2 and t&minus;4
+    says about it, the router's own gate at t&minus;1 already said it better. <strong>And the union saturates at
+    t&minus;4</strong>: by t&minus;8 the slots on offer have almost all been named already.
+  </p>
+
+  <h2>Coverage by layer</h2>
+  <p class="sub">
+    Layer 0 is excluded &mdash; no cross-layer predictor can enter it. Click the legend to isolate a series.
+  </p>
+  <div class="controls">
+    <span class="seg-label">Budget K</span>
+    <span class="seg" id="kseg"></span>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="panel chartbox">
+    <svg id="chart" viewBox="0 0 940 430" role="img" aria-labelledby="charttitle">
+      <title id="charttitle">Expert prediction coverage by layer, for five predictors</title>
+    </svg>
+    <div class="tip" id="tip"></div>
+  </div>
+
+  <h2>Where the union earns its budget</h2>
+  <p class="sub">
+    What t&minus;1 &cup; t&minus;2 &cup; t&minus;4 adds over t&minus;1 alone at K=16, layer by layer. At K=8 this
+    chart would be flat zero at every layer, by construction.
+  </p>
+  <div class="panel chartbox">
+    <svg id="gainchart" viewBox="0 0 940 300" role="img" aria-labelledby="gaintitle">
+      <title id="gaintitle">Coverage gained at K=16 from adding older tokens, by layer</title>
+    </svg>
+    <div class="tip" id="gaintip"></div>
+  </div>
+  <p class="cap">
+    A prefetcher filling a budget of 16 from older tokens would be doing useful work across the middle of the
+    stack and close to nothing at either end.
+  </p>
+
+  <h2>How fast history should be discounted</h2>
+  <p class="sub">
+    The vote's <span class="mono">decay</span>, swept on train over t&minus;1 &cup; t&minus;2 &cup; t&minus;4.
+    <span class="mono">decay = 0</span> collapses to t&minus;1 alone; <span class="mono">decay = 1</span> is an
+    equal vote across the three tokens.
+  </p>
+  <table>
+    <thead><tr><th>decay</th><th>Coverage@8</th><th>Coverage@12</th><th>Coverage@16</th></tr></thead>
+    <tbody id="decaytbody"></tbody>
+  </table>
+  <p class="cap">
+    Flat from 0.125 to 0.625, then a cliff: an equal vote costs <strong id="equalcost"></strong> at K=8 against the
+    tuned value. Recency has to be respected, but <em>how</em> barely matters &mdash; anything that puts t&minus;1
+    clearly first and does not discard the older tokens lands within 0.05pp of the optimum.
+  </p>
+
+  <h2>An unplanned result</h2>
+  <div class="panel">
+    <p style="margin-top:0">
+      <strong id="xt1">&mdash;</strong> at K=8 for <span class="mono">cross-layer + t&minus;1</span>, against
+      <strong id="xbd">&mdash;</strong> for the published winner on this same grid &mdash;
+      <strong id="xgap">&mdash;</strong> paired, consistent in all five folds, and larger than any gap in the
+      original study.
+    </p>
+    <div class="band">
+      <div class="r">same</div>
+      <div class="d">Both have the <span class="mono">layer</span> horizon and the same cross-layer term.</div>
+      <div class="r">different</div>
+      <div class="d">The published <span class="mono">combined</span> mixes in the <em>fitted</em> transition table
+        <span class="mono">P(E&#8348; | E&#8348;&#8331;&#8321;)</span>; this mixes in the <em>raw copy</em> of the previous
+        token's eight slots.</div>
+      <div class="r">why</div>
+      <div class="d">That study's own finding was that copying beats learning the transition &mdash; then it built
+        the combination out of the learned table anyway, because a copy ships no table to mix. Its gate vector is a
+        distribution, and mixing that is both legal and much better. The weight lands at
+        <span class="mono" id="xw"></span> against <span class="mono">w = 0.4</span> there, because the copy puts all
+        its mass on eight slots and needs only a nudge.</div>
+    </div>
+    <p style="margin-bottom:0" class="caveat">
+      This is not what the experiment set out to measure. Treat it as a lead: train only, one tuned weight, and the
+      test split for <span class="mono">corpus_v1</span> is already spent.
+    </p>
+  </div>
+
+  <h2>Before this goes any further</h2>
+  <ul class="notes">
+    <li><strong>The gains above K=8 are budget, not accuracy.</strong> Every union result says the same thing in
+      different words: give a predictor 16 slots and older tokens are good candidates for the extra 8. Nothing here
+      says routing is more <em>predictable</em> than the first study found &mdash; at the router's own top-k, it is
+      not.</li>
+    <li><strong>The grid moved, so the baselines moved with it.</strong> Restricting to tokens with 8 predecessors
+      costs about 0.3pp uniformly: the published combined predictor scores 40.26 here against 40.57 on the
+      shallower grid. Do not read a row of this page against a row of the other one.</li>
+    <li><strong>Prefetch is still simulated.</strong> No number here is a latency &mdash; all 10,240 experts fit in
+      this box's VRAM. What changed is that filling a budget of 16 from t&minus;1 &cup; t&minus;2 &cup; t&minus;4
+      costs no table and no lead time, where the published K=16 result needed a 2.6M-cell cross-layer table inside
+      1.25&nbsp;ms.</li>
+    <li class="caveat"><strong>Train only, 80 prompts, one corpus, greedy at temp=0.</strong> The paired fold
+      statistics above are not a substitute for a second corpus, and the held-out split is not read here.</li>
+  </ul>
+
+</div>
+</div>
+
+<script>
+const DATA = __DATA__;
+
+const NS = "http://www.w3.org/2000/svg";
+const el = (n, a = {}) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+const fmt = v => v.toFixed(1);
+const fmt2 = v => v.toFixed(2);
+const signed = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2);
+const disp = s => s.replace(/ u /g, " ∪ ").replace(/t-(\d)/g, "t−$1");
+const ki = k => DATA.budgets.indexOf(k);
+const chance = k => (k / DATA.n_experts) * 100;
+const REPORT = DATA.report_at;
+
+/* ---------- tiles & inline numbers ---------- */
+function tiles() {
+  const g = DATA.grid;
+  document.getElementById("gridnote").innerHTML =
+    `Cross-validated inside the train split over ${g.prompts} prompts and ` +
+    `${g.rows.toLocaleString()} decode tokens (of ${g.total.toLocaleString()}; every predictor scores only ` +
+    `tokens with ${g.max_lag} predecessors, so none of them is handed cells its rivals cannot enter).`;
+
+  const vote8 = DATA.paired["t-1 u t-2 u t-4 (vote)  over t-1"] || DATA.paired["t-1 u t-2 u t-4 (vote) over t-1"];
+  const pri = DATA.paired["t-1 u t-2 u t-4 (priority) over t-1"];
+  const v8 = vote8["K=8"], p16 = pri["K=16"];
+
+  document.getElementById("t1").textContent = signed(v8.mean) + "pp";
+  document.getElementById("t1n").textContent =
+    `best union vs t−1 · folds ${signed(v8.min)} to ${signed(v8.max)} — straddles zero`;
+  document.getElementById("t2").textContent = signed(p16.mean) + "pp";
+  document.getElementById("t2n").textContent =
+    `same union, same folds · sd ${p16.sd.toFixed(2)} — every fold positive`;
+
+  const best = DATA.pooled["cross-layer + history"][ki(8)];
+  document.getElementById("t3").textContent = fmt(best) + "%";
+  document.getElementById("t3n").textContent = `w = ${DATA.tuned.w.history}, decay = ${DATA.tuned.decay}`;
+
+  const t8 = DATA.pooled["t-8"][ki(8)], pop = DATA.pooled["popularity"][ki(8)];
+  document.getElementById("t8x").textContent = (t8 / pop).toFixed(1) + "×";
+
+  const th = DATA.thirds, i8 = ki(8);
+  document.getElementById("midratio").textContent =
+    Math.round(100 * th["t-8"].mid[i8] / th["t-1"].mid[i8]) + "%";
+
+  const d = DATA.decay_surface;
+  const tuned = d.find(r => r.decay === DATA.tuned.decay) || d[0];
+  const equal = d.find(r => r.decay === 1);
+  document.getElementById("equalcost").textContent =
+    fmt2((tuned.coverage_at_8 - equal.coverage_at_8) * 100) + "pp";
+
+  const xt1 = DATA.pooled["cross-layer + t-1"][i8], xbd = DATA.pooled["combined (B+D, published)"][i8];
+  document.getElementById("xt1").textContent = fmt(xt1) + "%";
+  document.getElementById("xbd").textContent = fmt(xbd) + "%";
+  document.getElementById("xgap").textContent =
+    signed(DATA.paired["cross-layer + t-1 over combined (B+D, published)"]["K=8"].mean) + "pp";
+  document.getElementById("xw").textContent = "w = " + DATA.tuned.w["t-1"];
+}
+
+/* ---------- tables ---------- */
+function row(label, vals, opts = {}) {
+  const tr = document.createElement("tr");
+  if (opts.cls) tr.className = opts.cls;
+  const sw = opts.color ? `<span class="swatch" style="background:${opts.color}"></span>`
+                        : (opts.dash ? `<span class="swatch dash"></span>` : `<span class="swatch none"></span>`);
+  tr.innerHTML = `<td>${sw}${label}</td>` + vals.join("");
+  return tr;
+}
+
+function cell(v, sd, hi) {
+  const s = sd === undefined ? "" : `<span class="sd">±${sd.toFixed(1)}</span>`;
+  return `<td class="num${hi ? " hi" : ""}">${fmt(v)}${s}</td>`;
+}
+
+function buildLagTable() {
+  const tb = document.getElementById("lagtbody");
+  tb.appendChild(row("Chance", REPORT.map(k => `<td class="num">${fmt(chance(k))}</td>`), { cls: "ref", dash: true }));
+  const rows = [
+    ["popularity", "Layer popularity", null],
+    ["t-1", "t−1", "var(--series-5)"],
+    ["t-2", "t−2", null],
+    ["t-4", "t−4", null],
+    ["t-8", "t−8", null],
+  ];
+  const best = REPORT.map(k => Math.max(...rows.map(([key]) => DATA.pooled[key][ki(k)])));
+  for (const [key, label, color] of rows) {
+    tb.appendChild(row(label,
+      REPORT.map((k, i) => cell(DATA.pooled[key][ki(k)], DATA.fold_sd[key][ki(k)],
+                                Math.abs(DATA.pooled[key][ki(k)] - best[i]) < 1e-9)),
+      { color }));
+  }
+}
+
+function buildUnionTable() {
+  const tb = document.getElementById("uniontbody");
+  const groups = [
+    ["baseline", ["t-1"]],
+    ["priority — the literal set union", [
+      "t-1 u t-2 (priority)", "t-1 u t-4 (priority)",
+      "t-1 u t-2 u t-4 (priority)", "t-1 u t-2 u t-4 u t-8 (priority)"]],
+    ["vote — gate-weighted, decay " + DATA.tuned.decay, [
+      "t-1 u t-2 (vote)", "t-1 u t-4 (vote)", "t-1 u t-2 u t-4 (vote)"]],
+  ];
+  const all = groups.flatMap(g => g[1]);
+  const best = REPORT.map(k => Math.max(...all.map(key => DATA.pooled[key][ki(k)])));
+  for (const [title, keys] of groups) {
+    const h = document.createElement("tr");
+    h.className = "group";
+    h.innerHTML = `<td colspan="4">${title}</td>`;
+    tb.appendChild(h);
+    for (const key of keys) {
+      tb.appendChild(row(disp(key).replace(/ \((priority|vote)\)/, ""),
+        REPORT.map((k, i) => cell(DATA.pooled[key][ki(k)], DATA.fold_sd[key][ki(k)],
+                                  Math.abs(DATA.pooled[key][ki(k)] - best[i]) < 1e-9)),
+        { color: key === "t-1" ? "var(--series-5)" : (key.includes("t-2 u t-4 (priority)") ? "var(--series-4)" : null) }));
+    }
+  }
+}
+
+function buildPairTable() {
+  const tb = document.getElementById("pairtbody");
+  const want = [
+    ["t-1 u t-2 u t-4 (priority) over t-1", "∪(1,2,4) priority over t−1"],
+    ["t-1 u t-2 (priority) over t-1", "∪(1,2) priority over t−1"],
+    ["t-1 u t-2 u t-4 (vote) over t-1", "∪(1,2,4) vote over t−1"],
+    ["t-1 u t-2 (vote) over t-1", "∪(1,2) vote over t−1"],
+    ["t-1 u t-2 u t-4 u t-8 (priority) over t-1 u t-2 u t-4 (priority)", "adding t−8 to ∪(1,2,4)"],
+    ["cross-layer + history over cross-layer + t-1", "older history inside the best predictor"],
+  ];
+  for (const [key, label] of want) {
+    const p = DATA.paired[key];
+    if (!p) continue;
+    tb.appendChild(row(label, REPORT.map(k => {
+      const v = p["K=" + k];
+      const straddles = v.min < 0 && v.max > 0;
+      return `<td class="num${straddles || Math.abs(v.mean) < 0.005 ? " zero" : ""}">${signed(v.mean)}` +
+             `<span class="sd">±${v.sd.toFixed(2)}</span></td>`;
+    })));
+  }
+}
+
+function buildDecayTable() {
+  const tb = document.getElementById("decaytbody");
+  const best8 = Math.max(...DATA.decay_surface.map(r => r.coverage_at_8));
+  for (const r of DATA.decay_surface) {
+    const note = r.decay === 0 ? " <span class=\"sd\">t−1 only</span>"
+               : r.decay === 1 ? " <span class=\"sd\">equal vote</span>" : "";
+    const tr = document.createElement("tr");
+    const hi = Math.abs(r.coverage_at_8 - best8) < 1e-12;
+    tr.innerHTML = `<td class="mono">${r.decay.toFixed(3)}${note}</td>` +
+      [8, 12, 16].map(k => `<td class="num${k === 8 && hi ? " hi" : ""}">${fmt(r["coverage_at_" + k] * 100)}</td>`).join("");
+    tb.appendChild(tr);
+  }
+}
+
+/* ---------- chart: memory by depth (ordinal ramp) ---------- */
+const LAGS = ["t-1", "t-2", "t-4", "t-8"];
+const BANDS = [
+  { key: "early", label: "early · layers 1–13", color: "var(--depth-1)" },
+  { key: "mid",   label: "mid · layers 14–26",  color: "var(--depth-2)" },
+  { key: "late",  label: "late · layers 27–39", color: "var(--depth-3)" },
+];
+
+function drawMem() {
+  const W = 940, H = 340, M = { t: 16, r: 168, b: 48, l: 54 };
+  const IW = W - M.l - M.r, IH = H - M.t - M.b;
+  const svg = document.getElementById("memchart");
+  [...svg.querySelectorAll("g,rect,path,text,line,circle")].forEach(n => n.remove());
+  const g = el("g"); svg.appendChild(g);
+
+  const i8 = ki(8);
+  const YMAX = 50;
+  const xs = i => M.l + (i / (LAGS.length - 1)) * IW;
+  const ys = v => M.t + IH - (v / YMAX) * IH;
+
+  for (let v = 0; v <= YMAX; v += 10) {
+    g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: ys(v), y2: ys(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    const t = el("text", { x: M.l - 10, y: ys(v) + 4, "text-anchor": "end", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = v + "%"; g.appendChild(t);
+  }
+  LAGS.forEach((lag, i) => {
+    const t = el("text", { x: xs(i), y: M.t + IH + 22, "text-anchor": "middle", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = disp(lag); g.appendChild(t);
+  });
+  const ax = el("text", { x: M.l + IW / 2, y: H - 8, "text-anchor": "middle", fill: "var(--text-secondary)", "font-size": 12.5 });
+  ax.textContent = "lag — how many tokens back (log₂ spacing)"; g.appendChild(ax);
+  const ay = el("text", { x: 14, y: M.t + IH / 2, "text-anchor": "middle", fill: "var(--text-secondary)",
+                          "font-size": 12.5, transform: `rotate(-90 14 ${M.t + IH / 2})` });
+  ay.textContent = "coverage @ K=8"; g.appendChild(ay);
+
+  const py = ys(DATA.pooled["popularity"][i8]);
+  g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: py, y2: py, stroke: "var(--text-muted)",
+                             "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+  const pt = el("text", { x: M.l + IW + 8, y: py + 4, fill: "var(--text-muted)", "font-size": 11.5 });
+  pt.textContent = `popularity ${fmt(DATA.pooled["popularity"][i8])}%`; g.appendChild(pt);
+
+  for (const b of BANDS) {
+    const pts = LAGS.map((lag, i) => [xs(i), ys(DATA.thirds[lag][b.key][i8])]);
+    g.appendChild(el("path", {
+      d: "M" + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join("L"),
+      fill: "none", stroke: b.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round",
+    }));
+    for (const p of pts)
+      g.appendChild(el("circle", { cx: p[0], cy: p[1], r: 4.5, fill: b.color, stroke: "var(--surface-1)", "stroke-width": 2 }));
+    const last = DATA.thirds["t-8"][b.key][i8];
+    const lab = el("text", { x: M.l + IW + 8, y: ys(last) + 4, fill: "var(--text-primary)", "font-size": 12 });
+    lab.textContent = `${b.label.split(" · ")[0]} · ${fmt(last)}%`;
+    g.appendChild(lab);
+  }
+
+  const hit = el("rect", { x: M.l, y: M.t, width: IW, height: IH, fill: "transparent" });
+  svg.appendChild(hit);
+  const tip = document.getElementById("memtip");
+  hit.addEventListener("pointermove", ev => {
+    const r = svg.getBoundingClientRect();
+    const px = (ev.clientX - r.left) / r.width * W;
+    let i = Math.round((px - M.l) / IW * (LAGS.length - 1));
+    i = Math.max(0, Math.min(LAGS.length - 1, i));
+    tip.innerHTML = `<h4>${disp(LAGS[i])} · K=8</h4>` + BANDS.map(b =>
+      `<div class="row"><span class="l"><span class="swatch" style="background:${b.color}"></span>${b.label}</span>` +
+      `<span class="v">${fmt(DATA.thirds[LAGS[i]][b.key][i8])}%</span></div>`).join("");
+    tip.style.opacity = 1;
+    tip.style.left = Math.min(r.width - 200, Math.max(0, (xs(i) / W) * r.width + 14)) + "px";
+    tip.style.top = "14px";
+  });
+  hit.addEventListener("pointerleave", () => { tip.style.opacity = 0; });
+}
+
+/* ---------- chart: coverage by layer ---------- */
+const SERIES = [
+  { key: "popularity",           label: "Layer popularity",       color: "var(--series-1)", tag: "pop" },
+  { key: "cross-layer + history", label: "Cross-layer + history", color: "var(--series-2)", tag: "C+H" },
+  { key: "cross-layer (C)",      label: "Cross-layer (C)",        color: "var(--series-3)", tag: "C"   },
+  { key: "t-1 u t-2 u t-4 (priority)", label: "t−1 ∪ t−2 ∪ t−4", color: "var(--series-4)", tag: "∪" },
+  { key: "t-1",                  label: "t−1 alone",         color: "var(--series-5)", tag: "t1"  },
+];
+const W = 940, H = 430, M = { t: 14, r: 158, b: 46, l: 54 };
+const IW = W - M.l - M.r, IH = H - M.t - M.b;
+let YMAX = 60, K = 8;
+const shown = new Set(SERIES.map(s => s.key));
+const xs = L => M.l + (L - DATA.layers[0]) / (DATA.layers.at(-1) - DATA.layers[0]) * IW;
+const ys = v => M.t + IH - (v / YMAX) * IH;
+
+function yMaxFor(k) {
+  let m = 0;
+  for (const s of SERIES) if (shown.has(s.key)) for (const r of DATA.per_layer[s.key]) m = Math.max(m, r[k]);
+  return Math.max(20, Math.ceil((m + 2) / 10) * 10);
+}
+
+function draw() {
+  const svg = document.getElementById("chart");
+  [...svg.querySelectorAll("g,rect,path,text,line,circle")].forEach(n => n.remove());
+  const k = ki(K);
+  YMAX = yMaxFor(k);
+  const g = el("g"); svg.appendChild(g);
+
+  for (let v = 0; v <= YMAX; v += 10) {
+    g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: ys(v), y2: ys(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    const t = el("text", { x: M.l - 10, y: ys(v) + 4, "text-anchor": "end", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = v + "%"; g.appendChild(t);
+  }
+  for (const L of [1, 5, 10, 15, 20, 25, 30, 35, 39]) {
+    const t = el("text", { x: xs(L), y: M.t + IH + 22, "text-anchor": "middle", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = L; g.appendChild(t);
+  }
+  const ax = el("text", { x: M.l + IW / 2, y: H - 8, "text-anchor": "middle", fill: "var(--text-secondary)", "font-size": 12.5 });
+  ax.textContent = "layer"; g.appendChild(ax);
+  const ay = el("text", { x: 14, y: M.t + IH / 2, "text-anchor": "middle", fill: "var(--text-secondary)",
+                          "font-size": 12.5, transform: `rotate(-90 14 ${M.t + IH / 2})` });
+  ay.textContent = "expert prediction coverage"; g.appendChild(ay);
+
+  const ry = ys(chance(K));
+  g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: ry, y2: ry, stroke: "var(--text-muted)",
+                             "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+  const rt = el("text", { x: M.l + IW + 8, y: ry + 4, fill: "var(--text-muted)", "font-size": 11.5 });
+  rt.textContent = `chance ${fmt(chance(K))}%`; g.appendChild(rt);
+
+  const ends = SERIES.filter(s => shown.has(s.key))
+    .map(s => ({ s, v: DATA.per_layer[s.key].at(-1)[k] }))
+    .sort((a, b) => b.v - a.v);
+  let lastY = -Infinity;
+  for (const e of ends) { e.y = Math.max(ys(e.v), lastY + 15); lastY = e.y; }
+
+  for (const s of SERIES) {
+    if (!shown.has(s.key)) continue;
+    const pts = DATA.per_layer[s.key].map((r, i) => [xs(DATA.layers[i]), ys(r[k])]);
+    g.appendChild(el("path", {
+      d: "M" + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join("L"),
+      fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round",
+    }));
+    const e = ends.find(x => x.s.key === s.key);
+    const lab = el("text", { x: M.l + IW + 8, y: e.y + 4, fill: "var(--text-primary)", "font-size": 12 });
+    lab.textContent = `${s.tag} · ${fmt(e.v)}%`;
+    g.appendChild(lab);
+    g.appendChild(el("line", { x1: M.l + IW, x2: M.l + IW + 5, y1: ys(e.v), y2: e.y, stroke: s.color, "stroke-width": 1.5 }));
+  }
+
+  const hover = el("g", { id: "hover", opacity: 0 });
+  hover.appendChild(el("line", { id: "cross", y1: M.t, y2: M.t + IH, stroke: "var(--border-strong)", "stroke-width": 1 }));
+  for (const s of SERIES) hover.appendChild(el("circle", { r: 4.5, fill: s.color, stroke: "var(--surface-1)",
+                                                          "stroke-width": 2, "data-k": s.key, opacity: 0 }));
+  svg.appendChild(hover);
+
+  const hit = el("rect", { x: M.l, y: M.t, width: IW, height: IH, fill: "transparent" });
+  svg.appendChild(hit);
+  hit.addEventListener("pointermove", ev => onMove(ev, svg, k));
+  hit.addEventListener("pointerleave", () => {
+    document.getElementById("hover").setAttribute("opacity", 0);
+    document.getElementById("tip").style.opacity = 0;
+  });
+}
+
+function onMove(ev, svg, k) {
+  const r = svg.getBoundingClientRect();
+  const px = (ev.clientX - r.left) / r.width * W;
+  let i = Math.round((px - M.l) / IW * (DATA.layers.length - 1));
+  i = Math.max(0, Math.min(DATA.layers.length - 1, i));
+  const L = DATA.layers[i], x = xs(L);
+
+  const hv = document.getElementById("hover");
+  hv.setAttribute("opacity", 1);
+  hv.querySelector("#cross").setAttribute("x1", x);
+  hv.querySelector("#cross").setAttribute("x2", x);
+  for (const c of hv.querySelectorAll("circle")) {
+    const key = c.getAttribute("data-k");
+    if (!shown.has(key)) { c.setAttribute("opacity", 0); continue; }
+    c.setAttribute("opacity", 1);
+    c.setAttribute("cx", x);
+    c.setAttribute("cy", ys(DATA.per_layer[key][i][k]));
+  }
+
+  const rows = SERIES.filter(s => shown.has(s.key))
+    .map(s => ({ s, v: DATA.per_layer[s.key][i][k] }))
+    .sort((a, b) => b.v - a.v);
+  const tip = document.getElementById("tip");
+  tip.innerHTML = `<h4>Layer ${L} · K=${K}</h4>` + rows.map(o =>
+    `<div class="row"><span class="l"><span class="swatch" style="background:${o.s.color}"></span>${o.s.label}</span>` +
+    `<span class="v">${fmt(o.v)}%</span></div>`).join("");
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(r.width - 200, Math.max(0, (x / W) * r.width + 14)) + "px";
+  tip.style.top = "14px";
+}
+
+/* ---------- chart: union gain by layer (bars) ---------- */
+function drawGain() {
+  const GW = 940, GH = 300, GM = { t: 16, r: 20, b: 46, l: 54 };
+  const IWg = GW - GM.l - GM.r, IHg = GH - GM.t - GM.b;
+  const svg = document.getElementById("gainchart");
+  [...svg.querySelectorAll("g,rect,path,text,line,circle")].forEach(n => n.remove());
+  const g = el("g"); svg.appendChild(g);
+
+  const k = ki(16);
+  const gain = DATA.layers.map((L, i) =>
+    DATA.per_layer["t-1 u t-2 u t-4 (priority)"][i][k] - DATA.per_layer["t-1"][i][k]);
+  const YM = Math.ceil(Math.max(...gain) / 2) * 2 + 2;
+  const yg = v => GM.t + IHg - (v / YM) * IHg;
+  const bw = IWg / DATA.layers.length;
+
+  for (let v = 0; v <= YM; v += 2) {
+    g.appendChild(el("line", { x1: GM.l, x2: GM.l + IWg, y1: yg(v), y2: yg(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    const t = el("text", { x: GM.l - 10, y: yg(v) + 4, "text-anchor": "end", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = "+" + v; g.appendChild(t);
+  }
+  const ay = el("text", { x: 14, y: GM.t + IHg / 2, "text-anchor": "middle", fill: "var(--text-secondary)",
+                          "font-size": 12.5, transform: `rotate(-90 14 ${GM.t + IHg / 2})` });
+  ay.textContent = "coverage gained (pp)"; g.appendChild(ay);
+  const ax = el("text", { x: GM.l + IWg / 2, y: GH - 8, "text-anchor": "middle", fill: "var(--text-secondary)", "font-size": 12.5 });
+  ax.textContent = "layer"; g.appendChild(ax);
+
+  const tip = document.getElementById("gaintip");
+  DATA.layers.forEach((L, i) => {
+    const h = Math.max(1, GM.t + IHg - yg(gain[i]));
+    const x = GM.l + i * bw + 1;
+    const bar = el("rect", { x, y: yg(gain[i]), width: Math.max(1, bw - 2), height: h,
+                             fill: "var(--series-4)", rx: 3, ry: 3 });
+    g.appendChild(bar);
+    const hit = el("rect", { x: GM.l + i * bw, y: GM.t, width: bw, height: IHg, fill: "transparent" });
+    hit.addEventListener("pointerenter", () => {
+      bar.setAttribute("fill", "var(--series-2)");
+      tip.innerHTML = `<h4>Layer ${L} · K=16</h4>` +
+        `<div class="row"><span class="l">t−1 alone</span><span class="v">${fmt(DATA.per_layer["t-1"][i][k])}%</span></div>` +
+        `<div class="row"><span class="l">with t−2, t−4</span><span class="v">${fmt(DATA.per_layer["t-1 u t-2 u t-4 (priority)"][i][k])}%</span></div>` +
+        `<div class="row"><span class="l">gained</span><span class="v">${signed(gain[i])}pp</span></div>`;
+      tip.style.opacity = 1;
+      const r = svg.getBoundingClientRect();
+      tip.style.left = Math.min(r.width - 200, Math.max(0, (x / GW) * r.width + 14)) + "px";
+      tip.style.top = "14px";
+    });
+    hit.addEventListener("pointerleave", () => { bar.setAttribute("fill", "var(--series-4)"); tip.style.opacity = 0; });
+    g.appendChild(hit);
+  });
+
+  for (const L of [1, 5, 10, 15, 20, 25, 30, 35, 39]) {
+    const i = DATA.layers.indexOf(L);
+    const t = el("text", { x: GM.l + i * bw + bw / 2, y: GM.t + IHg + 22, "text-anchor": "middle",
+                           fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = L; g.appendChild(t);
+  }
+}
+
+/* ---------- controls ---------- */
+function buildControls() {
+  const seg = document.getElementById("kseg");
+  for (const k of REPORT) {
+    const b = document.createElement("button");
+    b.textContent = k;
+    b.setAttribute("aria-pressed", String(k === K));
+    b.onclick = () => {
+      K = k;
+      [...seg.children].forEach(c => c.setAttribute("aria-pressed", String(+c.textContent === K)));
+      draw();
+    };
+    seg.appendChild(b);
+  }
+  const lg = document.getElementById("legend");
+  for (const s of SERIES) {
+    const b = document.createElement("button");
+    b.setAttribute("aria-pressed", "true");
+    b.innerHTML = `<span class="swatch" style="background:${s.color}"></span>${s.label}`;
+    b.onclick = () => {
+      if (shown.has(s.key)) { if (shown.size === 1) return; shown.delete(s.key); }
+      else shown.add(s.key);
+      b.setAttribute("aria-pressed", String(shown.has(s.key)));
+      draw();
+    };
+    lg.appendChild(b);
+  }
+  const ml = document.getElementById("memlegend");
+  for (const b of BANDS) {
+    const s = document.createElement("span");
+    s.className = "static";
+    s.innerHTML = `<span class="swatch" style="background:${b.color}"></span>${b.label}`;
+    ml.appendChild(s);
+  }
+}
+
+document.getElementById("themetog").onclick = () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+};
+
+tiles();
+buildLagTable(); buildUnionTable(); buildPairTable(); buildDecayTable();
+buildControls(); drawMem(); draw(); drawGain();
+</script>
+</body>
+</html>

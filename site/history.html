@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How far back does routing history reach? — corpus_v1</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-0: #f4f4f2;
+    --surface-1: #fcfcfb;
+    --surface-2: #eeeeeb;
+    --border:    #dedcd6;
+    --border-strong: #c3c1b8;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #78766f;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    /* Ordinal depth ramp: early -> late is ordered, so it takes one hue at
+       three monotone steps rather than three categorical hues. */
+    --depth-1: #86b6ef;
+    --depth-2: #2a78d6;
+    --depth-3: #104281;
+    --grid: #e6e5e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --surface-2: #232322;
+      --border:    #33322f;
+      --border-strong: #4a4945;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #94938a;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --depth-1: #184f95;
+      --depth-2: #3987e5;
+      --depth-3: #9ec5f4;
+      --grid: #2b2b29;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #232322;
+    --border: #33322f; --border-strong: #4a4945;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #94938a;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --series-4: #c98500; --series-5: #d55181;
+    --depth-1: #184f95; --depth-2: #3987e5; --depth-3: #9ec5f4;
+    --grid: #2b2b29;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root {
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    padding: 28px 20px 64px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 25px; line-height: 1.25; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 17px; margin: 40px 0 6px; letter-spacing: -0.005em; }
+  h3 { font-size: 14px; margin: 22px 0 4px; color: var(--text-secondary); font-weight: 600; }
+  .sub { color: var(--text-secondary); margin: 0 0 4px; font-size: 14px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .tag {
+    display: inline-block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 9px; margin-bottom: 14px;
+  }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 22px 0 8px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .tile .v { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .tile .n { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  table { border-collapse: collapse; width: 100%; background: var(--surface-1);
+          border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 14px; }
+  th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--border); }
+  th { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase;
+       color: var(--text-secondary); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; }
+  td .sd { color: var(--text-muted); font-size: 11.5px; margin-left: 3px; }
+  tr.ref td { color: var(--text-secondary); font-style: italic; }
+  td.hi { font-weight: 700; }
+  td.zero { color: var(--text-muted); }
+  tr.group td { background: var(--surface-2); font-size: 11.5px; letter-spacing: .04em;
+                text-transform: uppercase; color: var(--text-secondary); font-weight: 600; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+  .swatch.dash { background: none; border-top: 2px dashed var(--text-muted); height: 0; border-radius: 0; width: 12px; vertical-align: 3px; }
+  .swatch.none { background: none; }
+  .cap { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; }
+
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 14px 0 6px; }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 13px; padding: 5px 12px; background: var(--surface-1);
+    color: var(--text-secondary); border: none; border-right: 1px solid var(--border); cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); font-weight: 600; }
+  .seg-label { font-size: 12.5px; color: var(--text-secondary); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }
+  .legend button, .legend span.static {
+    display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 13px;
+    background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 12px 4px 9px;
+  }
+  .legend button { cursor: pointer; }
+  .legend button[aria-pressed="false"] { color: var(--text-muted); border-style: dashed; }
+  .legend button[aria-pressed="false"] .swatch { opacity: .3; }
+
+  .chartbox { position: relative; margin-top: 8px; }
+  svg { display: block; width: 100%; height: auto; }
+  .tip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
+    background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 8px;
+    padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 20px rgba(0,0,0,.14); min-width: 178px;
+  }
+  .tip h4 { margin: 0 0 6px; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+  .tip .row { display: flex; align-items: center; gap: 7px; justify-content: space-between; }
+  .tip .row span.l { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .tip .row span.v { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .notes { margin-top: 10px; font-size: 13.5px; color: var(--text-secondary); }
+  .notes li { margin-bottom: 7px; }
+  .band { display: grid; grid-template-columns: 104px 1fr; gap: 10px 14px; align-items: baseline; font-size: 13.5px; margin-top: 4px; }
+  .band .r { font-family: ui-monospace, monospace; color: var(--text-primary); font-weight: 600; }
+  .band .d { color: var(--text-secondary); }
+  .caveat { border-left: 3px solid var(--border-strong); padding-left: 14px; color: var(--text-secondary); font-size: 13.5px; }
+  .themetog { float: right; font-size: 12px; color: var(--text-secondary); background: none;
+              border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-family: inherit; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+
+  <button class="themetog" id="themetog">theme</button>
+  <div class="tag">corpus_v1 · train split only · decode · tokens with 8 predecessors</div>
+  <h1>How far back does routing history reach?</h1>
+  <p class="sub">
+    Every predictor here is built only from tokens the model has already finished &mdash; t&minus;1, t&minus;2,
+    t&minus;4, t&minus;8 &mdash; and a <strong>lag is not a horizon</strong>: t&minus;4 was known 200&nbsp;ms ago
+    at 20&nbsp;tok/s, so reaching further back costs nothing in lead time. The only question is whether older
+    tokens say anything t&minus;1 has not already said. <span id="gridnote"></span>
+  </p>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="k">Older tokens, at the router's own K=8</div>
+      <div class="v" id="t1">&mdash;</div>
+      <div class="n" id="t1n">&mdash;</div>
+    </div>
+    <div class="tile">
+      <div class="k">Older tokens, at K=16</div>
+      <div class="v" id="t2">&mdash;</div>
+      <div class="n" id="t2n">&mdash;</div>
+    </div>
+    <div class="tile">
+      <div class="k">Best predictor on this grid</div>
+      <div class="v" id="t3">&mdash;</div>
+      <div class="n">cross-layer + history, <span class="mono" id="t3n"></span></div>
+    </div>
+  </div>
+
+  <h2>One token back is worth far more than the next seven</h2>
+  <p class="sub">
+    Each row copies the slots of exactly one earlier token, ranked by the gates it gave them, with popularity
+    filling the budget below. Coverage@K pooled over layers 1&ndash;39, macro-averaged by prompt;
+    <span class="mono">&plusmn;</span> is the standard deviation across the 5 folds.
+  </p>
+  <table>
+    <thead><tr><th>Predictor</th><th>Coverage@8</th><th>Coverage@12</th><th>Coverage@16</th></tr></thead>
+    <tbody id="lagtbody"></tbody>
+  </table>
+  <p class="cap">
+    A token eight back still names <span id="t8x"></span> as many of the router's experts as
+    layer popularity does. Routing does not decorrelate inside this window &mdash; it decays to a high floor.
+    That floor is the trap: a predictor can look strong alone and still be redundant.
+  </p>
+
+  <h2>Routing memory is longest in the middle of the stack</h2>
+  <p class="sub">
+    Coverage@8 against lag, averaged within each third of the stack. The x-axis is
+    <span class="mono">log&#8322;</span> lag, so equal spacing is equal doubling &mdash; a straight line is
+    exponential decay. Flatter means longer memory.
+  </p>
+  <div class="legend" id="memlegend"></div>
+  <div class="panel chartbox">
+    <svg id="memchart" viewBox="0 0 940 340" role="img" aria-labelledby="memtitle">
+      <title id="memtitle">Coverage at K=8 against token lag, for three depth bands</title>
+    </svg>
+    <div class="tip" id="memtip"></div>
+  </div>
+  <p class="cap">
+    The mid-stack does not merely persist more strongly from t&minus;1 &mdash; it <em>decays more slowly</em>,
+    holding <span id="midratio"></span> of its t&minus;1 coverage at t&minus;8 where both ends hold about 60%.
+    Across the 39 layers the correlation between a layer's t&minus;1 coverage and its t&minus;8/t&minus;1 ratio is
+    <strong>+0.65</strong>: layers that remember the previous token also remember the one before that.
+  </p>
+
+  <h2>Unions: older tokens extend the list, they do not re-rank it</h2>
+  <p class="sub">
+    Two ways to rank a union, because &ldquo;does older history help?&rdquo; is two questions.
+    <strong>Priority</strong> is the literal set union, newest token first &mdash; at K=8 it <em>is</em> t&minus;1
+    by construction, so it can only say whether older tokens fill a surplus budget better than popularity does.
+    <strong>Vote</strong> weights a slot by <span class="mono">decay<sup>lag&minus;1</sup></span> times its gate and
+    sums, so older tokens can reorder t&minus;1's own eight &mdash; the only rule that can improve the ranking, and
+    the only one that can lose.
+  </p>
+  <table>
+    <thead><tr><th>Predictor</th><th>Coverage@8</th><th>Coverage@12</th><th>Coverage@16</th></tr></thead>
+    <tbody id="uniontbody"></tbody>
+  </table>
+
+  <h3>Which gaps are real</h3>
+  <p class="sub">
+    Paired per-fold differences, in percentage points. Every predictor saw the same five folds, so these resolve
+    far finer than the unpaired <span class="mono">&plusmn;</span> above. The range is across the five folds.
+  </p>
+  <table>
+    <thead><tr><th>Comparison</th><th>K=8</th><th>K=12</th><th>K=16</th></tr></thead>
+    <tbody id="pairtbody"></tbody>
+  </table>
+  <p class="cap">
+    <strong>Voting cannot beat copying at K=8</strong> &mdash; the three-lag vote's fold range straddles zero and
+    the two-lag vote loses in all five folds. Whatever a slot's recurrence across t&minus;1, t&minus;2 and t&minus;4
+    says about it, the router's own gate at t&minus;1 already said it better. <strong>And the union saturates at
+    t&minus;4</strong>: by t&minus;8 the slots on offer have almost all been named already.
+  </p>
+
+  <h2>Coverage by layer</h2>
+  <p class="sub">
+    Layer 0 is excluded &mdash; no cross-layer predictor can enter it. Click the legend to isolate a series.
+  </p>
+  <div class="controls">
+    <span class="seg-label">Budget K</span>
+    <span class="seg" id="kseg"></span>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="panel chartbox">
+    <svg id="chart" viewBox="0 0 940 430" role="img" aria-labelledby="charttitle">
+      <title id="charttitle">Expert prediction coverage by layer, for five predictors</title>
+    </svg>
+    <div class="tip" id="tip"></div>
+  </div>
+
+  <h2>Where the union earns its budget</h2>
+  <p class="sub">
+    What t&minus;1 &cup; t&minus;2 &cup; t&minus;4 adds over t&minus;1 alone at K=16, layer by layer. At K=8 this
+    chart would be flat zero at every layer, by construction.
+  </p>
+  <div class="panel chartbox">
+    <svg id="gainchart" viewBox="0 0 940 300" role="img" aria-labelledby="gaintitle">
+      <title id="gaintitle">Coverage gained at K=16 from adding older tokens, by layer</title>
+    </svg>
+    <div class="tip" id="gaintip"></div>
+  </div>
+  <p class="cap">
+    A prefetcher filling a budget of 16 from older tokens would be doing useful work across the middle of the
+    stack and close to nothing at either end.
+  </p>
+
+  <h2>How fast history should be discounted</h2>
+  <p class="sub">
+    The vote's <span class="mono">decay</span>, swept on train over t&minus;1 &cup; t&minus;2 &cup; t&minus;4.
+    <span class="mono">decay = 0</span> collapses to t&minus;1 alone; <span class="mono">decay = 1</span> is an
+    equal vote across the three tokens.
+  </p>
+  <table>
+    <thead><tr><th>decay</th><th>Coverage@8</th><th>Coverage@12</th><th>Coverage@16</th></tr></thead>
+    <tbody id="decaytbody"></tbody>
+  </table>
+  <p class="cap">
+    Flat from 0.125 to 0.625, then a cliff: an equal vote costs <strong id="equalcost"></strong> at K=8 against the
+    tuned value. Recency has to be respected, but <em>how</em> barely matters &mdash; anything that puts t&minus;1
+    clearly first and does not discard the older tokens lands within 0.05pp of the optimum.
+  </p>
+
+  <h2>An unplanned result</h2>
+  <div class="panel">
+    <p style="margin-top:0">
+      <strong id="xt1">&mdash;</strong> at K=8 for <span class="mono">cross-layer + t&minus;1</span>, against
+      <strong id="xbd">&mdash;</strong> for the published winner on this same grid &mdash;
+      <strong id="xgap">&mdash;</strong> paired, consistent in all five folds, and larger than any gap in the
+      original study.
+    </p>
+    <div class="band">
+      <div class="r">same</div>
+      <div class="d">Both have the <span class="mono">layer</span> horizon and the same cross-layer term.</div>
+      <div class="r">different</div>
+      <div class="d">The published <span class="mono">combined</span> mixes in the <em>fitted</em> transition table
+        <span class="mono">P(E&#8348; | E&#8348;&#8331;&#8321;)</span>; this mixes in the <em>raw copy</em> of the previous
+        token's eight slots.</div>
+      <div class="r">why</div>
+      <div class="d">That study's own finding was that copying beats learning the transition &mdash; then it built
+        the combination out of the learned table anyway, because a copy ships no table to mix. Its gate vector is a
+        distribution, and mixing that is both legal and much better. The weight lands at
+        <span class="mono" id="xw"></span> against <span class="mono">w = 0.4</span> there, because the copy puts all
+        its mass on eight slots and needs only a nudge.</div>
+    </div>
+    <p style="margin-bottom:0" class="caveat">
+      This is not what the experiment set out to measure. Treat it as a lead: train only, one tuned weight, and the
+      test split for <span class="mono">corpus_v1</span> is already spent.
+    </p>
+  </div>
+
+  <h2>Before this goes any further</h2>
+  <ul class="notes">
+    <li><strong>The gains above K=8 are budget, not accuracy.</strong> Every union result says the same thing in
+      different words: give a predictor 16 slots and older tokens are good candidates for the extra 8. Nothing here
+      says routing is more <em>predictable</em> than the first study found &mdash; at the router's own top-k, it is
+      not.</li>
+    <li><strong>The grid moved, so the baselines moved with it.</strong> Restricting to tokens with 8 predecessors
+      costs about 0.3pp uniformly: the published combined predictor scores 40.26 here against 40.57 on the
+      shallower grid. Do not read a row of this page against a row of the other one.</li>
+    <li><strong>Prefetch is still simulated.</strong> No number here is a latency &mdash; all 10,240 experts fit in
+      this box's VRAM. What changed is that filling a budget of 16 from t&minus;1 &cup; t&minus;2 &cup; t&minus;4
+      costs no table and no lead time, where the published K=16 result needed a 2.6M-cell cross-layer table inside
+      1.25&nbsp;ms.</li>
+    <li class="caveat"><strong>Train only, 80 prompts, one corpus, greedy at temp=0.</strong> The paired fold
+      statistics above are not a substitute for a second corpus, and the held-out split is not read here.</li>
+  </ul>
+
+</div>
+</div>
+
+<script>
+const DATA = {"budgets":[1,3,5,8,12,16],"report_at":[8,12,16],"layers":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39],"n_experts":256,"top_k":8,"grid":{"rows":11360,"total":12000,"prompts":80,"max_lag":8},"tuned":{"decay":0.5,"w":{"t-1":0.12,"history":0.15}},"cross_params":{"alpha":0.0,"beta":1.0},"decay_surface":[{"decay":0.0,"coverage_at_8":0.3854785768059021,"coverage_at_12":0.41050600004733273,"coverage_at_16":0.4319393982196374},{"decay":0.125,"coverage_at_8":0.38552033778069306,"coverage_at_12":0.4643659024513986,"coverage_at_16":0.5127945471560943},{"decay":0.25,"coverage_at_8":0.3858020542849267,"coverage_at_12":0.46481604322538744,"coverage_at_16":0.5127945471560943},{"decay":0.375,"coverage_at_8":0.385999961370142,"coverage_at_12":0.465271479418289,"coverage_at_16":0.5128085660779568},{"decay":0.5,"coverage_at_8":0.38602585357059765,"coverage_at_12":0.465593857468327,"coverage_at_16":0.5128478280177974},{"decay":0.625,"coverage_at_8":0.38543341282272203,"coverage_at_12":0.46516357336269876,"coverage_at_16":0.5129523293902631},{"decay":0.75,"coverage_at_8":0.3811219493050827,"coverage_at_12":0.46277692417334126,"coverage_at_16":0.5128530212866386},{"decay":0.875,"coverage_at_8":0.3720946399543556,"coverage_at_12":0.4561464266175643,"coverage_at_16":0.5111163313326252},{"decay":1.0,"coverage_at_8":0.36065782760969556,"coverage_at_12":0.4426507776753935,"coverage_at_16":0.5042936427598294}],"w_surface":{"t-1":[{"w":0.0,"coverage_at_8":0.3888449658868551},{"w":0.02,"coverage_at_8":0.41021020645818845},{"w":0.05,"coverage_at_8":0.43893973549398413},{"w":0.08,"coverage_at_8":0.4559481117096442},{"w":0.1,"coverage_at_8":0.46150852427227224},{"w":0.12,"coverage_at_8":0.46347346157392894},{"w":0.15,"coverage_at_8":0.46186670316030887},{"w":0.2,"coverage_at_8":0.45148352742366993},{"w":0.25,"coverage_at_8":0.4368124489409664},{"w":0.3,"coverage_at_8":0.42158748832767956},{"w":0.4,"coverage_at_8":0.39830915248936066},{"w":0.5,"coverage_at_8":0.38841930027287214},{"w":0.7,"coverage_at_8":0.3855290408864905},{"w":1.0,"coverage_at_8":0.3854785768059021}],"history":[{"w":0.0,"coverage_at_8":0.3888449658868551},{"w":0.02,"coverage_at_8":0.40796984571803235},{"w":0.05,"coverage_at_8":0.43589084695097885},{"w":0.08,"coverage_at_8":0.456885149450964},{"w":0.1,"coverage_at_8":0.4659810411970409},{"w":0.12,"coverage_at_8":0.47192864696095554},{"w":0.15,"coverage_at_8":0.476301157276471},{"w":0.2,"coverage_at_8":0.474785628081293},{"w":0.25,"coverage_at_8":0.4668500023507772},{"w":0.3,"coverage_at_8":0.45560426207534477},{"w":0.4,"coverage_at_8":0.43119054895806885},{"w":0.5,"coverage_at_8":0.4115349585607521},{"w":0.7,"coverage_at_8":0.3950237919302944},{"w":1.0,"coverage_at_8":0.38602585357059765}]},"paired":{"t-1 u t-2 u t-4 (priority) over t-1":{"K=8":{"mean":0.0,"sd":0.0,"min":0.0,"max":0.0},"K=12":{"mean":5.357547581478611,"sd":0.1897563379810138,"min":5.097040636059269,"max":5.551252687771208},"K=16":{"mean":8.076453276508671,"sd":0.19853687729999703,"min":7.774504902226731,"max":8.27209787546203}},"t-1 u t-2 u t-4 u t-8 (priority) over t-1 u t-2 u t-4 (priority)":{"K=8":{"mean":0.0,"sd":0.0,"min":0.0,"max":0.0},"K=12":{"mean":0.016873061428107627,"sd":0.0016551169871207698,"min":0.014765533835214839,"max":0.019192781784871382},"K=16":{"mean":0.39120323370683163,"sd":0.0460408444975187,"min":0.319213067484736,"max":0.4332207229186702}},"t-1 u t-2 (priority) over t-1":{"K=8":{"mean":0.0,"sd":0.0,"min":0.0,"max":0.0},"K=12":{"mean":4.961107866533587,"sd":0.1679428053950372,"min":4.72305176488958,"max":5.0912339706821355},"K=16":{"mean":5.949629013358286,"sd":0.16023933398269186,"min":5.749469659182383,"max":6.165016389329869}},"t-1 u t-2 u t-4 (vote) over t-1":{"K=8":{"mean":0.051077607999230334,"sd":0.07068434566631596,"min":-0.039931434823353706,"max":0.1343665295063856},"K=12":{"mean":5.50054177094469,"sd":0.19519126364557265,"min":5.232724857070398,"max":5.67814728020532},"K=16":{"mean":8.081581328762946,"sd":0.20035308493976337,"min":7.778369701379495,"max":8.279343298564573}},"t-1 u t-2 (vote) over t-1":{"K=8":{"mean":-0.1849203032857083,"sd":0.04951169934512495,"min":-0.2492370660569232,"max":-0.1243629464849072},"K=12":{"mean":4.9568843014119315,"sd":0.1714983295856305,"min":4.716011239745955,"max":5.094330862067448},"K=16":{"mean":5.949629013358286,"sd":0.16023933398269186,"min":5.749469659182383,"max":6.165016389329869}},"t-2 over t-8":{"K=8":{"mean":6.535535084861734,"sd":0.8700068592095501,"min":5.27986198643478,"max":7.416482480421383},"K=12":{"mean":6.143711392676055,"sd":0.8549083752023687,"min":4.950570138700488,"max":7.0092772366742775},"K=16":{"mean":5.843167799411794,"sd":0.8369582991522767,"min":4.723136099595838,"max":6.700454251970656}},"cross-layer + history over cross-layer + t-1":{"K=8":{"mean":1.278900130423657,"sd":0.08364783387408892,"min":1.1645836425606015,"max":1.376927115778659},"K=12":{"mean":1.2276555192654914,"sd":0.05523993936563692,"min":1.1584579555983465,"max":1.310707961248947},"K=16":{"mean":1.2401861803956704,"sd":0.09865178283849337,"min":1.0687917780573764,"max":1.311487882900153}},"cross-layer + history over cross-layer (C)":{"K=8":{"mean":8.761990169737018,"sd":0.32076011542100236,"min":8.352291804594113,"max":9.084084882638145},"K=12":{"mean":9.675313956099668,"sd":0.29692635346716234,"min":9.33278461418836,"max":9.92876671079127},"K=16":{"mean":9.760184349847414,"sd":0.2606205619327277,"min":9.39167818567257,"max":10.038210029501249}},"cross-layer + t-1 over combined (B+D, published)":{"K=8":{"mean":6.106128508650429,"sd":0.35829803199529586,"min":5.714535034134993,"max":6.576445637202882},"K=12":{"mean":6.825515647453624,"sd":0.2787462482653193,"min":6.57165529033919,"max":7.196299689041269},"K=16":{"mean":6.810443276407599,"sd":0.26726733687194554,"min":6.5407649549537705,"max":7.21036337903077}},"cross-layer + history over combined (B+D, published)":{"K=8":{"mean":7.385028639074085,"sd":0.31762461742264386,"min":6.9854002632362135,"max":7.817759134168184},"K=12":{"mean":8.053171166719116,"sd":0.2553863679997226,"min":7.782166363888759,"max":8.354757644639616},"K=16":{"mean":8.050629456803268,"sd":0.1888639382331701,"min":7.806416840230479,"max":8.279155157088148}}},"pooled":{"popularity":[1.518,3.925,6.087,9.061,12.579,15.861],"t-1":[7.017,18.764,28.266,38.548,41.051,43.194],"t-2":[5.705,15.111,22.731,31.109,34.005,36.488],"t-4":[4.845,12.826,19.269,26.515,29.653,32.314],"t-8":[4.554,11.94,17.913,24.652,27.936,30.715],"t-1 u t-2 (priority)":[7.017,18.764,28.266,38.548,46.019,49.15],"t-1 u t-4 (priority)":[7.017,18.764,28.266,38.548,45.383,48.59],"t-1 u t-2 u t-4 (priority)":[7.017,18.764,28.266,38.548,46.415,51.279],"t-1 u t-2 u t-4 u t-8 (priority)":[7.017,18.764,28.266,38.548,46.432,51.673],"t-1 u t-2 (vote)":[7.58,19.593,28.768,38.365,46.014,49.15],"t-1 u t-4 (vote)":[7.221,19.219,28.756,38.548,45.382,48.59],"t-1 u t-2 u t-4 (vote)":[7.703,19.833,29.024,38.603,46.559,51.285],"cross-layer (C)":[7.955,20.125,29.106,38.884,47.976,54.594],"combined (B+D, published)":[8.046,20.646,30.067,40.257,49.591,56.296],"cross-layer + t-1":[9.266,23.93,34.814,46.347,56.401,63.089],"cross-layer + history":[9.615,24.812,35.941,47.63,57.63,64.331]},"per_layer":{"popularity":[[1.093,3.154,4.677,7.2,10.369,13.33],[0.959,2.515,4.032,5.913,8.46,11.128],[1.295,3.526,5.495,8.576,12.052,15.606],[1.267,3.626,6.071,8.634,12.255,15.406],[1.105,2.923,4.987,7.416,10.32,13.167],[1.081,3.051,4.967,7.771,10.393,12.785],[1.583,4.287,6.598,10.122,13.543,16.994],[2.133,4.925,7.178,10.143,14.865,20.226],[1.476,3.968,6.2,8.977,12.088,15.286],[1.182,3.542,5.251,8.097,11.663,14.618],[1.13,3.418,5.5,7.687,10.75,13.495],[0.836,2.821,5.08,7.954,11.292,14.549],[2.194,4.206,5.977,8.88,12.617,15.562],[2.182,5.484,7.59,11.02,14.504,18.251],[1.347,4.387,6.991,11.347,14.567,16.996],[2.915,5.17,7.693,10.68,14.704,17.923],[1.351,5.064,7.377,10.132,13.647,16.817],[1.394,4.329,5.245,8.021,11.603,14.975],[1.812,4.669,7.339,10.717,13.787,17.299],[1.844,4.516,6.488,10.033,13.631,17.254],[2.148,5.219,7.578,11.277,14.352,17.344],[1.13,3.121,5.239,8.325,11.516,14.526],[1.455,3.589,6.301,9.534,13.17,15.968],[1.068,3.738,6.384,9.282,13.13,16.942],[0.862,2.903,5.14,8.298,11.221,14.003],[2.217,4.49,6.405,9.363,13.133,15.976],[1.95,4.197,7.021,9.865,12.471,15.312],[2.463,4.701,7.193,9.855,12.948,15.602],[1.254,4.122,6.026,9.021,13.413,17.007],[0.877,2.888,4.9,7.433,10.707,13.482],[1.391,3.493,5.492,8.252,11.947,15.657],[1.922,4.34,6.545,9.443,13.144,16.367],[1.417,3.152,4.934,8.133,11.546,15.306],[1.22,3.373,5.565,8.729,13.129,16.201],[1.319,3.186,5.335,8.495,12.616,15.836],[1.734,4.031,6.086,8.912,12.624,16.511],[1.145,3.654,6.816,10.299,14.198,18.044],[1.752,4.338,6.381,9.457,13.631,17.803],[1.697,4.941,7.316,10.089,14.59,19.035]],"t-1":[[3.304,7.993,11.812,16.062,19.229,21.56],[5.174,12.663,17.901,23.783,26.418,28.578],[4.556,11.012,15.901,21.626,25.221,28.056],[5.403,13.312,19.63,25.886,28.123,30.669],[6.348,16.524,24.406,32.792,35.568,37.557],[7.845,20.001,28.878,38.625,40.727,42.613],[8.199,20.953,30.655,40.756,43.674,45.741],[8.165,21.839,32.337,42.808,46.823,48.934],[6.695,18.37,27.78,37.337,39.745,41.632],[6.035,16.456,24.718,33.395,35.711,37.931],[5.422,14.603,22.045,29.988,33.064,35.161],[7.312,18.854,27.55,36.924,39.358,41.341],[7.234,19.452,28.961,39.175,42.414,44.345],[8.115,21.733,32.503,43.726,46.679,48.599],[8.013,20.907,31.317,42.353,44.572,46.701],[7.617,20.077,29.862,40.391,42.921,45.416],[8.414,21.784,32.368,43.763,45.928,47.93],[8.357,22.05,32.951,44.623,46.808,48.29],[8.354,22.084,32.93,44.315,46.803,48.627],[8.943,24.075,35.989,48.38,50.579,52.377],[8.065,22.067,33.48,45.761,47.804,49.388],[6.315,17.326,26.312,36.301,38.547,40.791],[5.623,16.011,24.399,33.576,36.656,39.152],[7.962,20.547,30.349,40.981,43.628,45.813],[7.918,20.693,30.99,42.213,44.097,46.772],[8.605,23.073,34.38,46.405,48.341,50.227],[8.341,22.27,33.548,45.689,47.71,48.96],[8.199,21.779,32.556,44.066,46.008,48.075],[8.217,22.232,33.989,46.541,48.404,50.557],[8.323,22.418,34.111,46.801,48.422,49.812],[8.552,23.471,35.754,48.652,50.211,51.854],[6.176,18.271,29.106,41.019,43.345,45.308],[5.711,16.257,25.563,36.447,38.4,40.933],[6.244,16.447,25.549,36.644,39.839,42.52],[7.973,21.626,33.166,45.409,47.122,49.488],[6.218,17.287,27.06,38.209,41.43,44.668],[6.505,17.73,27.682,38.668,41.205,43.38],[5.916,16.798,26.055,36.896,39.015,41.227],[3.29,10.75,17.839,26.378,30.425,33.58]],"t-2":[[1.966,4.653,6.938,9.806,13.383,16.014],[2.219,5.487,8.01,11.065,14.132,16.534],[2.789,7.008,10.312,14.286,18.094,21.444],[3.765,9.035,13.366,17.951,20.636,23.673],[4.662,11.905,17.737,24.225,27.458,30.0],[5.563,14.219,20.867,28.267,30.933,33.244],[6.542,16.656,24.616,32.908,36.446,38.946],[6.816,18.375,27.354,36.244,41.075,43.559],[5.487,14.996,22.808,31.079,33.835,35.99],[4.545,12.353,18.653,25.369,28.188,30.789],[3.696,10.478,15.83,22.074,25.515,27.766],[6.093,15.434,22.449,30.343,33.161,35.417],[6.098,16.476,24.607,33.425,36.982,39.164],[7.412,19.674,29.291,39.227,42.489,44.537],[7.227,18.911,28.157,37.998,40.476,42.754],[6.772,17.603,26.307,35.55,38.228,40.898],[7.728,19.565,28.806,38.904,41.261,43.513],[7.549,19.73,29.356,39.773,42.175,43.774],[7.44,19.39,28.951,39.258,42.058,44.224],[8.296,22.047,32.839,43.933,46.35,48.304],[7.317,19.842,29.864,40.745,43.123,44.848],[5.126,13.896,21.306,29.424,31.901,34.273],[4.382,12.763,19.759,27.287,30.683,33.226],[6.954,17.752,26.095,35.016,37.886,40.456],[6.935,17.685,26.476,36.222,38.36,41.433],[7.808,20.628,30.497,40.928,43.121,45.308],[7.32,19.333,28.826,39.483,41.878,43.287],[6.868,17.829,26.526,36.018,38.321,40.785],[7.003,18.438,28.016,38.715,40.904,43.275],[6.941,18.351,27.824,38.37,40.277,41.904],[7.133,19.322,28.935,39.539,41.383,43.525],[4.803,13.807,21.982,31.18,34.012,36.453],[4.08,11.646,18.494,26.711,29.198,32.45],[4.525,11.633,18.073,25.821,29.156,32.492],[6.361,16.872,25.595,34.881,36.978,39.879],[4.372,12.402,19.453,27.559,31.596,35.283],[4.959,13.046,19.786,27.439,30.811,33.65],[4.417,12.265,19.018,27.134,30.016,32.977],[2.544,7.817,12.735,19.084,23.702,26.997]],"t-4":[[1.557,3.886,5.796,8.395,12.074,14.66],[1.021,2.846,4.28,6.306,9.457,11.902],[1.993,5.449,8.215,11.382,15.267,18.71],[2.806,7.139,10.764,14.754,17.774,20.859],[3.57,9.378,13.891,19.142,22.549,25.396],[4.315,10.883,16.022,22.019,24.945,27.55],[5.573,14.25,21.017,28.247,32.042,34.78],[6.212,16.573,24.522,32.551,37.727,40.375],[4.884,13.226,19.954,27.247,30.234,32.558],[3.647,9.689,14.611,20.058,23.279,26.131],[2.963,8.356,12.749,18.016,21.728,24.216],[5.323,13.228,19.266,26.1,29.062,31.451],[5.443,14.508,21.558,29.685,33.39,35.818],[6.669,17.703,26.268,35.278,38.78,41.07],[6.336,16.687,24.932,33.663,36.377,38.871],[5.883,15.616,23.358,31.579,34.562,37.262],[6.967,17.474,25.76,34.777,37.356,39.811],[6.624,17.263,25.6,34.582,37.26,39.062],[6.481,16.95,25.181,34.418,37.634,40.109],[7.737,20.25,29.8,39.749,42.458,44.588],[6.608,17.855,26.772,36.437,39.121,41.023],[4.104,10.953,16.754,23.656,26.42,29.047],[3.611,10.423,16.116,22.67,26.397,29.02],[6.094,15.207,22.312,30.291,33.263,36.087],[6.046,15.522,23.103,31.702,34.012,37.298],[6.932,18.063,26.552,35.666,38.108,40.604],[6.343,16.798,24.946,34.124,36.94,38.542],[5.746,14.672,21.941,29.882,32.559,35.27],[6.02,15.554,23.575,32.688,35.2,37.805],[5.858,15.318,23.122,32.111,34.309,36.042],[5.947,16.166,24.38,33.493,35.664,38.1],[3.873,11.205,17.918,25.807,28.797,31.52],[3.124,9.057,14.543,21.481,24.344,27.885],[3.644,9.413,14.636,21.208,24.392,27.841],[5.117,13.905,21.126,28.892,31.311,34.374],[3.686,10.332,16.226,22.988,27.045,30.563],[4.253,11.098,16.523,23.058,26.715,29.706],[3.773,10.592,16.424,23.446,26.627,29.683],[2.168,6.729,10.963,16.524,21.301,24.649]],"t-8":[[1.637,4.054,6.079,8.886,12.476,15.227],[0.893,2.669,4.238,6.268,9.423,12.016],[2.006,5.288,8.01,11.176,15.219,18.684],[2.854,7.055,10.718,14.463,17.668,20.815],[3.139,8.261,12.448,17.466,21.017,23.83],[3.492,9.007,13.368,18.634,21.9,24.593],[5.228,13.221,19.455,26.252,30.175,32.973],[5.932,15.708,23.14,31.095,36.282,39.063],[4.609,12.708,19.124,26.042,29.094,31.6],[3.116,8.477,12.945,17.917,21.198,24.235],[2.752,7.518,11.638,16.555,20.32,22.797],[4.918,12.35,17.921,24.377,27.349,29.902],[5.199,13.615,20.547,27.944,31.69,34.176],[6.457,16.806,24.662,33.008,36.54,38.917],[6.186,15.95,23.6,32.014,34.826,37.399],[5.576,14.427,21.483,29.28,32.455,35.221],[6.633,16.536,24.223,32.679,35.459,37.954],[6.225,16.16,23.953,32.4,35.237,37.104],[6.16,16.125,23.997,32.517,35.823,38.436],[7.493,19.369,28.389,37.807,40.498,42.693],[6.294,17.023,25.247,34.247,37.211,39.274],[3.783,9.883,15.03,21.237,24.165,26.991],[3.316,9.529,14.765,20.817,24.746,27.513],[5.713,14.087,20.581,27.756,30.852,33.774],[5.712,14.412,21.414,29.143,31.526,34.914],[6.351,16.465,24.186,32.477,35.075,37.73],[5.896,15.239,22.657,31.0,33.956,35.739],[5.267,13.421,19.931,27.256,30.174,32.92],[5.576,14.299,21.422,29.675,32.355,35.264],[5.426,13.803,20.842,28.918,31.353,33.27],[5.663,15.03,22.492,30.739,33.176,35.721],[3.678,10.338,16.477,23.506,26.72,29.54],[2.909,8.384,13.595,19.965,23.001,26.68],[3.322,8.49,13.106,19.18,22.614,26.28],[4.872,13.162,19.746,27.156,29.772,32.986],[3.544,9.889,15.49,21.948,26.108,29.647],[4.095,10.403,15.657,21.892,25.796,28.985],[3.488,9.949,15.33,21.739,25.286,28.583],[2.204,6.541,10.715,15.981,20.952,24.445]],"t-1 u t-2 (priority)":[[3.304,7.993,11.812,16.062,19.607,22.362],[5.174,12.663,17.901,23.783,26.905,29.445],[4.556,11.012,15.901,21.626,26.695,30.132],[5.403,13.312,19.63,25.886,31.407,34.282],[6.348,16.524,24.406,32.792,39.588,43.09],[7.845,20.001,28.878,38.625,45.609,48.49],[8.199,20.953,30.655,40.756,49.136,52.457],[8.165,21.839,32.337,42.808,51.992,56.003],[6.695,18.37,27.78,37.337,45.748,49.057],[6.035,16.456,24.718,33.395,40.495,43.828],[5.422,14.603,22.045,29.988,36.706,40.382],[7.312,18.854,27.55,36.924,45.144,48.637],[7.234,19.452,28.961,39.175,48.609,52.345],[8.115,21.733,32.503,43.726,53.629,56.944],[8.013,20.907,31.317,42.353,51.786,54.94],[7.617,20.077,29.862,40.391,49.65,52.8],[8.414,21.784,32.368,43.763,53.129,55.918],[8.357,22.05,32.951,44.623,53.899,56.88],[8.354,22.084,32.93,44.315,53.821,56.819],[8.943,24.075,35.989,48.38,58.08,60.66],[8.065,22.067,33.48,45.761,54.881,57.561],[6.315,17.326,26.312,36.301,44.251,47.477],[5.623,16.011,24.399,33.576,41.285,45.106],[7.962,20.547,30.349,40.981,49.827,53.089],[7.918,20.693,30.99,42.213,50.765,54.006],[8.605,23.073,34.38,46.405,55.444,58.146],[8.341,22.27,33.548,45.689,53.925,56.732],[8.199,21.779,32.556,44.066,51.881,54.747],[8.217,22.232,33.989,46.541,54.148,56.857],[8.323,22.418,34.111,46.801,54.373,56.69],[8.552,23.471,35.754,48.652,55.945,58.061],[6.176,18.271,29.106,41.019,47.133,50.26],[5.711,16.257,25.563,36.447,42.134,45.117],[6.244,16.447,25.549,36.644,42.216,46.031],[7.973,21.626,33.166,45.409,51.682,54.359],[6.218,17.287,27.06,38.209,43.91,47.647],[6.505,17.73,27.682,38.668,44.655,47.484],[5.916,16.798,26.055,36.896,42.753,45.889],[3.29,10.75,17.839,26.378,31.883,36.107]],"t-1 u t-4 (priority)":[[3.304,7.993,11.812,16.062,19.357,22.137],[5.174,12.663,17.901,23.783,26.458,28.392],[4.556,11.012,15.901,21.626,26.037,29.113],[5.403,13.312,19.63,25.886,30.8,33.702],[6.348,16.524,24.406,32.792,38.874,42.364],[7.845,20.001,28.878,38.625,45.002,48.105],[8.199,20.953,30.655,40.756,48.736,52.327],[8.165,21.839,32.337,42.808,51.922,56.14],[6.695,18.37,27.78,37.337,45.167,48.639],[6.035,16.456,24.718,33.395,39.671,42.941],[5.422,14.603,22.045,29.988,35.923,39.791],[7.312,18.854,27.55,36.924,44.491,48.043],[7.234,19.452,28.961,39.175,47.698,51.786],[8.115,21.733,32.503,43.726,52.603,56.164],[8.013,20.907,31.317,42.353,50.879,53.922],[7.617,20.077,29.862,40.391,48.789,51.977],[8.414,21.784,32.368,43.763,52.119,55.08],[8.357,22.05,32.951,44.623,52.954,55.948],[8.354,22.084,32.93,44.315,52.714,55.935],[8.943,24.075,35.989,48.38,57.217,59.945],[8.065,22.067,33.48,45.761,54.013,56.796],[6.315,17.326,26.312,36.301,42.916,46.332],[5.623,16.011,24.399,33.576,40.107,43.995],[7.962,20.547,30.349,40.981,48.773,52.184],[7.918,20.693,30.99,42.213,50.14,53.396],[8.605,23.073,34.38,46.405,54.34,57.041],[8.341,22.27,33.548,45.689,53.155,55.94],[8.199,21.779,32.556,44.066,51.07,53.963],[8.217,22.232,33.989,46.541,53.409,56.232],[8.323,22.418,34.111,46.801,53.553,56.27],[8.552,23.471,35.754,48.652,55.579,57.98],[6.176,18.271,29.106,41.019,46.738,50.018],[5.711,16.257,25.563,36.447,41.469,44.765],[6.244,16.447,25.549,36.644,42.227,45.876],[7.973,21.626,33.166,45.409,51.544,54.253],[6.218,17.287,27.06,38.209,44.279,48.018],[6.505,17.73,27.682,38.668,44.504,47.541],[5.916,16.798,26.055,36.896,42.87,46.082],[3.29,10.75,17.839,26.378,31.825,35.874]],"t-1 u t-2 u t-4 (priority)":[[3.304,7.993,11.812,16.062,19.608,22.326],[5.174,12.663,17.901,23.783,26.918,29.268],[4.556,11.012,15.901,21.626,26.679,30.274],[5.403,13.312,19.63,25.886,31.502,35.505],[6.348,16.524,24.406,32.792,39.813,44.495],[7.845,20.001,28.878,38.625,45.999,50.761],[8.199,20.953,30.655,40.756,49.407,55.06],[8.165,21.839,32.337,42.808,52.425,58.737],[6.695,18.37,27.78,37.337,46.148,51.794],[6.035,16.456,24.718,33.395,40.703,45.666],[5.422,14.603,22.045,29.988,36.744,41.763],[7.312,18.854,27.55,36.924,45.516,51.12],[7.234,19.452,28.961,39.175,48.826,54.753],[8.115,21.733,32.503,43.726,54.384,59.772],[8.013,20.907,31.317,42.353,52.455,57.944],[7.617,20.077,29.862,40.391,50.098,55.594],[8.414,21.784,32.368,43.763,53.78,59.027],[8.357,22.05,32.951,44.623,54.489,59.813],[8.354,22.084,32.93,44.315,54.456,59.757],[8.943,24.075,35.989,48.38,58.901,63.89],[8.065,22.067,33.48,45.761,55.527,60.594],[6.315,17.326,26.312,36.301,44.535,49.512],[5.623,16.011,24.399,33.576,41.431,46.57],[7.962,20.547,30.349,40.981,50.252,55.588],[7.918,20.693,30.99,42.213,51.445,56.835],[8.605,23.073,34.38,46.405,56.264,60.79],[8.341,22.27,33.548,45.689,54.592,59.347],[8.199,21.779,32.556,44.066,52.331,57.155],[8.217,22.232,33.989,46.541,54.719,59.371],[8.323,22.418,34.111,46.801,54.987,59.542],[8.552,23.471,35.754,48.652,56.691,61.227],[6.176,18.271,29.106,41.019,47.369,51.952],[5.711,16.257,25.563,36.447,42.322,46.687],[6.244,16.447,25.549,36.644,42.426,47.163],[7.973,21.626,33.166,45.409,52.351,56.735],[6.218,17.287,27.06,38.209,44.108,49.242],[6.505,17.73,27.682,38.668,45.033,49.575],[5.916,16.798,26.055,36.896,43.048,48.037],[3.29,10.75,17.839,26.378,31.909,36.657]],"t-1 u t-2 u t-4 u t-8 (priority)":[[3.304,7.993,11.812,16.062,19.608,22.333],[5.174,12.663,17.901,23.783,26.918,29.259],[4.556,11.012,15.901,21.626,26.679,30.265],[5.403,13.312,19.63,25.886,31.504,35.535],[6.348,16.524,24.406,32.792,39.816,44.604],[7.845,20.001,28.878,38.625,46.001,50.951],[8.199,20.953,30.655,40.756,49.41,55.32],[8.165,21.839,32.337,42.808,52.409,59.033],[6.695,18.37,27.78,37.337,46.162,52.141],[6.035,16.456,24.718,33.395,40.709,45.815],[5.422,14.603,22.045,29.988,36.746,41.796],[7.312,18.854,27.55,36.924,45.518,51.399],[7.234,19.452,28.961,39.175,48.83,54.985],[8.115,21.733,32.503,43.726,54.436,60.518],[8.013,20.907,31.317,42.353,52.486,58.607],[7.617,20.077,29.862,40.391,50.119,56.174],[8.414,21.784,32.368,43.763,53.793,59.749],[8.357,22.05,32.951,44.623,54.517,60.527],[8.354,22.084,32.93,44.315,54.494,60.578],[8.943,24.075,35.989,48.38,58.947,64.957],[8.065,22.067,33.48,45.761,55.563,61.29],[6.315,17.326,26.312,36.301,44.545,49.809],[5.623,16.011,24.399,33.576,41.432,46.653],[7.962,20.547,30.349,40.981,50.27,55.995],[7.918,20.693,30.99,42.213,51.472,57.465],[8.605,23.073,34.38,46.405,56.313,61.649],[8.341,22.27,33.548,45.689,54.641,60.039],[8.199,21.779,32.556,44.066,52.352,57.724],[8.217,22.232,33.989,46.541,54.756,60.064],[8.323,22.418,34.111,46.801,55.019,60.214],[8.552,23.471,35.754,48.652,56.736,62.033],[6.176,18.271,29.106,41.019,47.378,52.163],[5.711,16.257,25.563,36.447,42.333,46.906],[6.244,16.447,25.549,36.644,42.432,47.298],[7.973,21.626,33.166,45.409,52.379,57.294],[6.218,17.287,27.06,38.209,44.116,49.359],[6.505,17.73,27.682,38.668,45.045,49.831],[5.916,16.798,26.055,36.896,43.057,48.224],[3.29,10.75,17.839,26.378,31.909,36.7]],"t-1 u t-2 (vote)":[[3.387,8.257,11.525,15.52,19.582,22.362],[5.019,11.895,16.857,22.521,26.781,29.445],[4.758,11.245,16.023,21.357,26.616,30.132],[5.894,13.718,19.307,25.47,31.412,34.282],[6.685,16.872,24.311,32.23,39.55,43.09],[7.835,19.976,28.732,38.279,45.591,48.49],[8.509,21.514,31.151,40.824,49.135,52.457],[8.673,22.384,32.734,42.881,52.021,56.003],[7.303,19.01,27.973,37.228,45.763,49.057],[6.499,16.866,24.616,33.054,40.483,43.828],[5.874,15.142,21.972,29.709,36.692,40.382],[7.768,19.564,28.281,37.185,45.145,48.637],[7.791,20.279,29.696,39.583,48.627,52.345],[8.707,22.802,33.657,44.575,53.65,56.944],[8.651,22.235,32.506,42.762,51.787,54.94],[8.258,21.401,31.18,40.929,49.662,52.8],[9.161,23.107,33.682,44.244,53.124,55.918],[9.03,23.472,34.267,44.948,53.925,56.88],[8.95,23.372,34.007,44.748,53.831,56.819],[9.47,25.161,37.092,48.707,58.11,60.66],[8.78,23.299,34.585,46.071,54.887,57.561],[7.096,18.231,26.81,36.065,44.252,47.477],[6.523,16.915,24.882,33.354,41.289,45.106],[8.388,21.535,31.343,41.265,49.828,53.089],[8.328,21.729,31.976,42.417,50.765,54.006],[8.958,23.85,35.142,46.737,55.453,58.146],[8.835,23.258,34.509,45.712,53.924,56.732],[8.594,22.45,33.047,43.972,51.875,54.747],[8.918,23.205,34.615,46.211,54.147,56.857],[8.899,23.388,34.582,46.416,54.372,56.69],[9.023,24.134,35.785,48.344,55.966,58.061],[7.309,19.624,29.467,39.963,47.125,50.26],[6.724,17.384,25.789,35.181,42.122,45.117],[7.067,17.413,25.911,35.569,42.208,46.031],[8.489,22.434,33.393,44.794,51.688,54.359],[7.122,18.399,27.536,37.245,43.906,47.647],[7.197,18.627,27.785,38.035,44.645,47.484],[6.868,18.002,26.883,36.444,42.759,45.889],[4.264,11.986,18.333,25.691,31.862,36.107]],"t-1 u t-4 (vote)":[[3.358,8.126,11.913,16.043,19.357,22.137],[5.175,12.669,17.929,23.706,26.458,28.392],[4.603,11.196,16.102,21.597,26.037,29.113],[5.555,13.546,19.846,25.897,30.8,33.702],[6.434,16.788,24.75,32.794,38.871,42.364],[7.931,20.292,29.265,38.615,45.002,48.105],[8.384,21.327,31.158,40.785,48.736,52.327],[8.374,22.361,32.91,42.82,51.922,56.14],[6.897,18.801,28.292,37.342,45.167,48.639],[6.149,16.821,24.981,33.392,39.671,42.941],[5.532,14.845,22.417,29.986,35.923,39.791],[7.496,19.27,27.954,36.946,44.491,48.043],[7.402,19.821,29.527,39.178,47.698,51.786],[8.334,22.233,33.222,43.737,52.603,56.164],[8.203,21.513,31.99,42.355,50.879,53.922],[7.844,20.822,30.622,40.393,48.789,51.977],[8.694,22.402,33.036,43.759,52.118,55.08],[8.596,22.622,33.491,44.64,52.954,55.948],[8.578,22.708,33.658,44.319,52.714,55.935],[9.193,24.632,36.767,48.403,57.217,59.945],[8.33,22.623,34.201,45.766,54.013,56.796],[6.544,17.688,26.639,36.306,42.915,46.332],[5.886,16.489,24.865,33.582,40.107,43.995],[8.164,21.088,30.952,40.985,48.772,52.184],[8.081,21.286,31.646,42.214,50.14,53.396],[8.814,23.592,34.975,46.406,54.34,57.041],[8.536,22.749,34.117,45.69,53.155,55.94],[8.441,22.22,33.012,44.07,51.07,53.963],[8.49,22.779,34.435,46.544,53.409,56.232],[8.593,22.931,34.673,46.794,53.553,56.27],[8.745,23.991,36.296,48.652,55.579,57.98],[6.468,18.916,29.605,41.017,46.738,50.018],[6.016,16.729,25.999,36.45,41.469,44.765],[6.525,16.826,25.958,36.639,42.227,45.876],[8.183,22.204,33.617,45.408,51.544,54.253],[6.519,17.736,27.527,38.208,44.279,48.018],[6.851,18.311,28.22,38.662,44.504,47.541],[6.291,17.452,26.634,36.902,42.87,46.082],[3.415,11.134,18.263,26.377,31.825,35.874]],"t-1 u t-2 u t-4 (vote)":[[3.423,8.318,11.62,15.612,19.639,22.357],[5.032,11.841,16.87,22.482,26.826,29.289],[4.798,11.365,16.152,21.523,26.764,30.316],[5.974,13.873,19.482,25.658,31.625,35.538],[6.724,17.009,24.516,32.516,39.952,44.525],[7.907,20.101,28.872,38.457,46.081,50.768],[8.646,21.692,31.351,41.214,49.655,55.062],[8.793,22.714,32.999,43.211,52.678,58.734],[7.408,19.306,28.381,37.589,46.348,51.789],[6.621,17.115,24.86,33.296,40.772,45.667],[6.019,15.295,22.181,29.997,36.895,41.762],[7.879,19.752,28.515,37.47,45.757,51.124],[7.897,20.522,30.046,39.991,49.028,54.757],[8.815,23.054,34.01,45.004,54.557,59.78],[8.786,22.614,32.897,43.163,52.659,57.946],[8.417,21.675,31.542,41.288,50.318,55.595],[9.295,23.49,34.067,44.678,53.924,59.03],[9.154,23.773,34.528,45.338,54.677,59.819],[9.077,23.621,34.435,45.072,54.599,59.757],[9.575,25.485,37.521,49.058,59.095,63.896],[8.932,23.622,34.947,46.346,55.685,60.601],[7.226,18.444,27.08,36.2,44.689,49.52],[6.691,17.172,25.12,33.58,41.645,46.582],[8.526,21.785,31.646,41.578,50.384,55.594],[8.4,22.017,32.216,42.71,51.633,56.838],[9.06,24.127,35.433,47.076,56.407,60.787],[8.952,23.54,34.792,45.871,54.755,59.347],[8.694,22.647,33.259,44.18,52.454,57.161],[9.116,23.484,34.841,46.414,54.877,59.366],[9.048,23.593,34.795,46.529,55.015,59.538],[9.151,24.379,35.97,48.398,56.771,61.227],[7.504,19.925,29.784,40.118,47.487,51.946],[6.937,17.668,26.067,35.385,42.475,46.677],[7.228,17.632,26.073,35.761,42.536,47.163],[8.609,22.657,33.581,44.84,52.474,56.741],[7.305,18.687,27.736,37.318,44.22,49.236],[7.37,18.933,28.016,38.155,45.14,49.572],[7.039,18.371,27.146,36.574,43.273,48.04],[4.373,12.2,18.573,25.853,32.049,36.658]],"cross-layer (C)":[[7.395,19.001,27.399,36.693,45.028,51.514],[7.012,17.574,25.603,34.545,43.027,49.394],[6.364,16.395,24.746,34.246,42.812,49.088],[7.884,20.079,29.276,39.088,48.061,54.781],[7.592,18.86,27.727,37.158,46.134,52.591],[7.814,19.024,27.516,37.033,46.723,54.069],[7.771,19.324,27.848,37.187,46.3,52.791],[7.506,18.495,26.553,35.036,43.294,49.414],[6.942,17.903,26.659,36.121,45.022,52.126],[7.658,19.186,27.38,36.662,45.683,52.08],[9.231,22.795,33.017,43.782,53.139,59.942],[7.593,18.807,26.716,35.562,43.635,50.127],[7.365,18.642,27.106,36.531,45.604,52.615],[7.883,19.156,27.567,37.145,46.19,52.902],[7.81,19.671,28.373,38.125,47.447,54.144],[7.35,18.754,26.831,36.082,45.383,52.268],[7.812,19.585,28.589,38.68,47.891,54.698],[7.944,20.204,29.019,38.952,48.463,55.595],[8.233,21.306,30.421,40.114,49.486,56.651],[7.32,18.416,26.382,35.594,43.91,50.071],[7.397,18.476,26.942,36.195,44.837,51.686],[6.955,17.392,24.756,33.48,42.039,48.533],[8.66,21.186,30.207,39.973,49.098,55.596],[7.515,18.095,25.391,33.897,42.522,48.791],[7.324,18.613,26.414,35.171,43.677,50.114],[7.421,17.984,26.406,35.756,45.445,52.697],[7.386,19.243,28.325,37.877,46.946,53.544],[7.324,18.82,27.386,37.173,47.122,54.388],[8.285,21.071,30.692,40.805,50.36,56.853],[8.331,21.775,31.475,42.321,52.095,59.359],[8.903,22.434,32.063,42.324,51.947,58.639],[8.388,21.004,30.923,41.966,52.117,59.037],[10.313,26.016,37.127,48.971,58.742,65.184],[10.134,26.552,38.093,49.246,58.849,65.157],[9.033,21.646,30.339,39.117,47.549,53.919],[8.547,22.638,32.913,43.726,52.723,58.581],[8.529,22.445,32.864,43.483,52.7,59.197],[8.452,22.238,32.588,43.521,52.618,58.708],[8.857,24.086,35.494,47.162,56.431,62.321]],"combined (B+D, published)":[[7.81,20.722,30.125,40.195,49.194,55.607],[7.384,18.977,27.77,37.983,47.436,54.053],[5.999,16.273,24.798,34.376,43.105,49.512],[8.232,21.521,31.66,41.963,51.138,57.385],[7.852,20.037,29.577,39.979,49.479,55.981],[8.568,21.189,30.691,41.132,51.426,58.441],[7.955,19.951,28.84,38.811,48.631,55.136],[7.641,19.492,27.503,36.258,45.032,51.313],[7.243,18.336,27.349,37.477,47.152,54.464],[8.12,20.457,29.425,39.316,48.678,55.188],[8.955,22.608,32.944,44.019,53.26,59.872],[7.946,19.362,27.487,36.659,45.627,52.473],[7.005,18.693,27.751,37.873,47.379,54.457],[7.874,19.223,27.767,37.536,47.291,54.268],[8.008,19.515,28.26,37.901,47.173,53.955],[7.199,18.816,27.024,36.383,45.676,52.486],[7.836,19.502,28.944,39.212,48.803,55.683],[7.969,20.686,29.796,40.057,49.415,56.554],[8.104,20.895,30.389,40.503,49.88,56.997],[7.471,19.174,27.497,36.78,45.28,51.779],[7.599,18.396,27.172,36.57,46.016,52.846],[7.47,18.537,26.572,35.774,44.799,51.723],[8.425,20.339,29.361,39.035,48.259,55.205],[7.733,18.621,26.273,35.045,43.894,50.591],[7.807,19.877,28.299,37.45,46.08,52.54],[7.707,18.844,27.756,37.226,47.034,54.296],[7.306,19.473,28.789,38.422,47.213,54.087],[7.148,19.862,29.175,39.532,49.615,56.809],[8.152,21.77,31.996,42.846,52.621,59.151],[8.57,22.385,32.602,44.159,54.332,61.697],[8.882,22.571,32.377,43.337,53.107,60.212],[8.343,21.665,32.097,43.68,54.101,61.393],[10.197,26.11,37.83,49.606,59.319,65.838],[9.954,26.608,38.985,50.636,59.899,66.24],[9.223,22.897,32.668,42.676,51.728,58.064],[8.501,22.94,33.728,44.807,53.083,59.08],[8.68,22.747,33.432,44.288,53.416,59.906],[8.269,22.511,33.181,44.358,53.273,59.144],[8.654,23.596,34.739,46.153,55.221,61.11]],"cross-layer + t-1":[[7.113,19.24,28.216,38.095,46.868,53.408],[6.654,18.543,27.849,38.406,48.707,55.899],[6.643,17.003,25.376,35.52,45.256,52.369],[8.254,21.458,31.548,42.548,52.635,59.359],[8.458,22.044,32.677,44.517,54.826,61.679],[9.555,24.492,35.406,46.887,57.162,63.747],[9.523,24.377,35.379,46.901,56.764,63.229],[9.616,24.207,35.021,46.32,56.039,62.077],[8.692,22.191,32.442,43.511,53.388,60.293],[8.403,22.41,32.446,43.13,52.796,59.615],[8.644,22.736,33.845,46.207,57.025,63.814],[9.122,23.03,33.411,44.647,54.249,60.436],[8.951,23.284,33.73,45.266,55.524,62.108],[9.888,25.148,36.14,47.45,57.266,63.639],[10.031,25.177,35.616,46.319,56.03,62.533],[9.252,23.439,33.648,44.395,54.269,61.039],[10.046,25.035,36.352,47.93,57.635,64.262],[10.146,25.897,37.491,49.01,58.77,65.471],[10.101,25.943,37.25,48.91,58.976,65.536],[10.1,25.165,35.838,46.846,56.75,63.401],[9.724,24.486,34.894,46.2,55.771,62.23],[8.323,21.542,31.291,41.61,51.118,57.899],[8.87,22.615,32.945,44.167,54.333,61.318],[9.515,23.959,34.268,45.074,54.426,60.924],[9.427,24.21,34.932,46.178,55.749,62.044],[9.857,25.268,36.33,47.777,57.381,64.005],[9.801,25.225,36.207,47.428,56.842,63.171],[9.411,24.423,35.364,46.897,57.04,63.98],[10.081,26.255,38.486,51.315,61.628,68.13],[9.959,26.299,38.664,51.495,62.33,69.15],[10.324,27.118,39.325,52.004,62.716,69.128],[9.299,23.91,34.949,46.994,58.001,65.63],[10.118,26.406,38.581,51.906,63.546,70.901],[10.398,27.678,41.035,53.758,64.361,71.378],[10.209,26.728,38.921,51.298,60.963,66.991],[9.524,24.673,36.102,48.101,58.645,65.439],[9.845,25.342,36.911,49.311,59.617,66.287],[9.178,24.362,35.824,47.98,57.981,64.413],[8.339,21.936,33.03,45.243,56.263,63.55]],"cross-layer + history":[[7.502,20.012,28.971,38.89,47.514,54.213],[6.759,18.385,27.479,38.036,48.049,55.205],[7.078,17.831,26.374,36.682,46.115,53.109],[8.754,22.467,32.535,43.328,53.303,60.026],[8.982,22.981,33.643,45.54,55.96,63.035],[9.665,24.939,35.998,47.887,58.197,65.127],[9.843,25.212,36.38,48.156,58.019,64.708],[10.005,25.26,36.262,47.715,57.595,63.884],[9.185,23.391,33.763,45.053,54.944,61.741],[9.016,23.242,33.484,44.119,53.9,60.709],[9.276,23.623,34.564,46.842,57.613,64.616],[9.554,24.189,34.75,46.307,56.139,62.488],[9.35,24.329,35.126,46.934,57.263,64.186],[10.261,26.172,37.669,49.362,59.246,65.641],[10.313,26.174,37.012,48.094,57.81,64.464],[9.543,24.498,35.05,45.958,56.058,62.993],[10.4,26.145,37.791,49.833,59.491,66.025],[10.423,27.021,38.879,50.591,60.49,67.086],[10.388,26.884,38.549,50.272,60.324,67.28],[10.508,26.396,37.39,48.847,58.735,65.463],[10.179,25.721,36.67,48.012,57.575,63.936],[8.765,22.537,32.391,42.825,52.219,58.991],[9.439,23.716,34.165,45.359,55.259,62.357],[9.874,24.964,35.719,46.607,56.3,62.843],[9.78,25.529,36.726,48.075,57.72,64.156],[10.089,26.377,37.939,49.679,59.4,65.955],[10.01,26.077,37.54,49.226,58.541,64.899],[9.63,25.035,36.293,48.023,58.366,65.273],[10.377,27.194,39.74,52.656,62.957,69.42],[10.29,27.158,39.794,52.735,63.63,70.379],[10.619,27.657,40.078,52.968,63.51,70.053],[9.544,24.858,35.999,48.056,58.548,65.644],[10.508,27.234,39.722,53.009,64.333,71.422],[10.727,28.205,41.804,54.77,65.108,71.733],[10.43,27.352,39.916,52.543,62.139,68.4],[9.834,25.36,36.866,48.964,59.024,65.672],[9.885,25.81,37.877,50.321,60.313,66.893],[9.395,24.855,36.672,49.005,58.889,65.192],[8.788,22.896,34.103,46.293,56.954,63.701]]},"fold_sd":{"popularity":[0.237,0.392,0.608,0.731,0.841,0.955],"t-1":[0.143,0.321,0.413,0.499,0.473,0.5],"t-2":[0.152,0.39,0.558,0.738,0.81,0.844],"t-4":[0.178,0.408,0.598,0.828,0.92,0.97],"t-8":[0.191,0.562,0.866,1.136,1.204,1.246],"t-1 u t-2 (priority)":[0.143,0.321,0.413,0.499,0.579,0.587],"t-1 u t-4 (priority)":[0.143,0.321,0.413,0.499,0.533,0.521],"t-1 u t-2 u t-4 (priority)":[0.143,0.321,0.413,0.499,0.593,0.584],"t-1 u t-2 u t-4 u t-8 (priority)":[0.143,0.321,0.413,0.499,0.593,0.614],"t-1 u t-2 (vote)":[0.158,0.315,0.477,0.525,0.583,0.587],"t-1 u t-4 (vote)":[0.145,0.302,0.425,0.502,0.533,0.521],"t-1 u t-2 u t-4 (vote)":[0.157,0.335,0.484,0.524,0.594,0.584],"cross-layer (C)":[0.145,0.301,0.396,0.533,0.573,0.595],"combined (B+D, published)":[0.131,0.298,0.412,0.527,0.614,0.624],"cross-layer + t-1":[0.129,0.321,0.406,0.456,0.563,0.609],"cross-layer + history":[0.134,0.336,0.449,0.509,0.585,0.592]},"thirds":{"popularity":{"early":[1.333,3.536,5.54,8.259,11.59,14.781],"mid":[1.671,4.36,6.598,9.848,13.305,16.483],"late":[1.549,3.878,6.124,9.076,12.843,16.32]},"t-1":{"early":[6.284,16.31,24.044,32.243,35.083,37.24],"mid":[7.869,20.956,31.371,42.522,44.874,46.929],"late":[6.897,19.026,29.383,40.878,43.195,45.412]},"t-2":{"early":[4.634,12.083,17.965,24.388,27.68,30.195],"mid":[6.996,18.422,27.516,37.251,39.855,42.119],"late":[5.487,14.828,22.712,31.687,34.48,37.151]},"t-4":{"early":[3.793,9.955,14.819,20.3,23.81,26.493],"mid":[6.161,16.151,24.039,32.651,35.519,37.989],"late":[4.581,12.372,18.948,26.593,29.631,32.46]},"t-8":{"early":[3.521,9.226,13.818,19.006,22.601,25.378],"mid":[5.838,15.136,22.425,30.414,33.416,35.994],"late":[4.303,11.458,17.497,24.535,27.79,30.774]},"t-1 u t-2 (priority)":{"early":[6.284,16.31,24.044,32.243,39.049,42.347],"mid":[7.869,20.956,31.371,42.522,51.573,54.642],"late":[6.897,19.026,29.383,40.878,47.434,50.46]},"t-1 u t-4 (priority)":{"early":[6.284,16.31,24.044,32.243,38.472,41.806],"mid":[7.869,20.956,31.371,42.522,50.582,53.747],"late":[6.897,19.026,29.383,40.878,47.094,50.216]},"t-1 u t-2 u t-4 (priority)":{"early":[6.284,16.31,24.044,32.243,39.253,43.963],"mid":[7.869,20.956,31.371,42.522,52.155,57.361],"late":[6.897,19.026,29.383,40.878,47.837,52.515]},"t-1 u t-2 u t-4 u t-8 (priority)":{"early":[6.284,16.31,24.044,32.243,39.255,44.111],"mid":[7.869,20.956,31.371,42.522,52.184,57.998],"late":[6.897,19.026,29.383,40.878,47.858,52.911]},"t-1 u t-2 (vote)":{"early":[6.615,16.671,24.091,31.988,39.031,42.347],"mid":[8.485,22.085,32.395,42.832,51.582,54.642],"late":[7.639,20.023,29.818,40.275,47.431,50.46]},"t-1 u t-4 (vote)":{"early":[6.407,16.605,24.388,32.239,38.472,41.806],"mid":[8.097,21.515,32.005,42.528,50.582,53.747],"late":[7.16,19.537,29.874,40.878,47.094,50.216]},"t-1 u t-2 u t-4 (vote)":{"early":[6.701,16.839,24.296,32.232,39.386,43.976],"mid":[8.612,22.375,32.726,43.161,52.329,57.365],"late":[7.794,20.286,30.049,40.415,47.963,52.513]},"cross-layer (C)":{"early":[7.548,18.93,27.504,36.896,45.728,52.349],"mid":[7.663,19.141,27.485,36.859,45.876,52.596],"late":[8.652,22.305,32.329,42.899,52.323,58.837]},"combined (B+D, published)":{"early":[7.747,19.817,28.917,38.926,48.272,54.914],"mid":[7.785,19.417,28.085,37.652,46.892,53.763],"late":[8.606,22.703,33.2,44.192,53.61,60.21]},"cross-layer + t-1":{"early":[8.433,21.924,32.103,43.227,53.172,59.849],"mid":[9.637,24.453,35.153,46.297,56.036,62.639],"late":[9.73,25.412,37.185,49.518,59.995,66.781]},"cross-layer + history":{"early":[8.844,22.759,33.025,44.268,54.201,61.004],"mid":[9.997,25.549,36.612,47.963,57.741,64.399],"late":[10.003,26.13,38.185,50.659,60.947,67.591]}}};
+
+const NS = "http://www.w3.org/2000/svg";
+const el = (n, a = {}) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+const fmt = v => v.toFixed(1);
+const fmt2 = v => v.toFixed(2);
+const signed = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2);
+const disp = s => s.replace(/ u /g, " ∪ ").replace(/t-(\d)/g, "t−$1");
+const ki = k => DATA.budgets.indexOf(k);
+const chance = k => (k / DATA.n_experts) * 100;
+const REPORT = DATA.report_at;
+
+/* ---------- tiles & inline numbers ---------- */
+function tiles() {
+  const g = DATA.grid;
+  document.getElementById("gridnote").innerHTML =
+    `Cross-validated inside the train split over ${g.prompts} prompts and ` +
+    `${g.rows.toLocaleString()} decode tokens (of ${g.total.toLocaleString()}; every predictor scores only ` +
+    `tokens with ${g.max_lag} predecessors, so none of them is handed cells its rivals cannot enter).`;
+
+  const vote8 = DATA.paired["t-1 u t-2 u t-4 (vote)  over t-1"] || DATA.paired["t-1 u t-2 u t-4 (vote) over t-1"];
+  const pri = DATA.paired["t-1 u t-2 u t-4 (priority) over t-1"];
+  const v8 = vote8["K=8"], p16 = pri["K=16"];
+
+  document.getElementById("t1").textContent = signed(v8.mean) + "pp";
+  document.getElementById("t1n").textContent =
+    `best union vs t−1 · folds ${signed(v8.min)} to ${signed(v8.max)} — straddles zero`;
+  document.getElementById("t2").textContent = signed(p16.mean) + "pp";
+  document.getElementById("t2n").textContent =
+    `same union, same folds · sd ${p16.sd.toFixed(2)} — every fold positive`;
+
+  const best = DATA.pooled["cross-layer + history"][ki(8)];
+  document.getElementById("t3").textContent = fmt(best) + "%";
+  document.getElementById("t3n").textContent = `w = ${DATA.tuned.w.history}, decay = ${DATA.tuned.decay}`;
+
+  const t8 = DATA.pooled["t-8"][ki(8)], pop = DATA.pooled["popularity"][ki(8)];
+  document.getElementById("t8x").textContent = (t8 / pop).toFixed(1) + "×";
+
+  const th = DATA.thirds, i8 = ki(8);
+  document.getElementById("midratio").textContent =
+    Math.round(100 * th["t-8"].mid[i8] / th["t-1"].mid[i8]) + "%";
+
+  const d = DATA.decay_surface;
+  const tuned = d.find(r => r.decay === DATA.tuned.decay) || d[0];
+  const equal = d.find(r => r.decay === 1);
+  document.getElementById("equalcost").textContent =
+    fmt2((tuned.coverage_at_8 - equal.coverage_at_8) * 100) + "pp";
+
+  const xt1 = DATA.pooled["cross-layer + t-1"][i8], xbd = DATA.pooled["combined (B+D, published)"][i8];
+  document.getElementById("xt1").textContent = fmt(xt1) + "%";
+  document.getElementById("xbd").textContent = fmt(xbd) + "%";
+  document.getElementById("xgap").textContent =
+    signed(DATA.paired["cross-layer + t-1 over combined (B+D, published)"]["K=8"].mean) + "pp";
+  document.getElementById("xw").textContent = "w = " + DATA.tuned.w["t-1"];
+}
+
+/* ---------- tables ---------- */
+function row(label, vals, opts = {}) {
+  const tr = document.createElement("tr");
+  if (opts.cls) tr.className = opts.cls;
+  const sw = opts.color ? `<span class="swatch" style="background:${opts.color}"></span>`
+                        : (opts.dash ? `<span class="swatch dash"></span>` : `<span class="swatch none"></span>`);
+  tr.innerHTML = `<td>${sw}${label}</td>` + vals.join("");
+  return tr;
+}
+
+function cell(v, sd, hi) {
+  const s = sd === undefined ? "" : `<span class="sd">±${sd.toFixed(1)}</span>`;
+  return `<td class="num${hi ? " hi" : ""}">${fmt(v)}${s}</td>`;
+}
+
+function buildLagTable() {
+  const tb = document.getElementById("lagtbody");
+  tb.appendChild(row("Chance", REPORT.map(k => `<td class="num">${fmt(chance(k))}</td>`), { cls: "ref", dash: true }));
+  const rows = [
+    ["popularity", "Layer popularity", null],
+    ["t-1", "t−1", "var(--series-5)"],
+    ["t-2", "t−2", null],
+    ["t-4", "t−4", null],
+    ["t-8", "t−8", null],
+  ];
+  const best = REPORT.map(k => Math.max(...rows.map(([key]) => DATA.pooled[key][ki(k)])));
+  for (const [key, label, color] of rows) {
+    tb.appendChild(row(label,
+      REPORT.map((k, i) => cell(DATA.pooled[key][ki(k)], DATA.fold_sd[key][ki(k)],
+                                Math.abs(DATA.pooled[key][ki(k)] - best[i]) < 1e-9)),
+      { color }));
+  }
+}
+
+function buildUnionTable() {
+  const tb = document.getElementById("uniontbody");
+  const groups = [
+    ["baseline", ["t-1"]],
+    ["priority — the literal set union", [
+      "t-1 u t-2 (priority)", "t-1 u t-4 (priority)",
+      "t-1 u t-2 u t-4 (priority)", "t-1 u t-2 u t-4 u t-8 (priority)"]],
+    ["vote — gate-weighted, decay " + DATA.tuned.decay, [
+      "t-1 u t-2 (vote)", "t-1 u t-4 (vote)", "t-1 u t-2 u t-4 (vote)"]],
+  ];
+  const all = groups.flatMap(g => g[1]);
+  const best = REPORT.map(k => Math.max(...all.map(key => DATA.pooled[key][ki(k)])));
+  for (const [title, keys] of groups) {
+    const h = document.createElement("tr");
+    h.className = "group";
+    h.innerHTML = `<td colspan="4">${title}</td>`;
+    tb.appendChild(h);
+    for (const key of keys) {
+      tb.appendChild(row(disp(key).replace(/ \((priority|vote)\)/, ""),
+        REPORT.map((k, i) => cell(DATA.pooled[key][ki(k)], DATA.fold_sd[key][ki(k)],
+                                  Math.abs(DATA.pooled[key][ki(k)] - best[i]) < 1e-9)),
+        { color: key === "t-1" ? "var(--series-5)" : (key.includes("t-2 u t-4 (priority)") ? "var(--series-4)" : null) }));
+    }
+  }
+}
+
+function buildPairTable() {
+  const tb = document.getElementById("pairtbody");
+  const want = [
+    ["t-1 u t-2 u t-4 (priority) over t-1", "∪(1,2,4) priority over t−1"],
+    ["t-1 u t-2 (priority) over t-1", "∪(1,2) priority over t−1"],
+    ["t-1 u t-2 u t-4 (vote) over t-1", "∪(1,2,4) vote over t−1"],
+    ["t-1 u t-2 (vote) over t-1", "∪(1,2) vote over t−1"],
+    ["t-1 u t-2 u t-4 u t-8 (priority) over t-1 u t-2 u t-4 (priority)", "adding t−8 to ∪(1,2,4)"],
+    ["cross-layer + history over cross-layer + t-1", "older history inside the best predictor"],
+  ];
+  for (const [key, label] of want) {
+    const p = DATA.paired[key];
+    if (!p) continue;
+    tb.appendChild(row(label, REPORT.map(k => {
+      const v = p["K=" + k];
+      const straddles = v.min < 0 && v.max > 0;
+      return `<td class="num${straddles || Math.abs(v.mean) < 0.005 ? " zero" : ""}">${signed(v.mean)}` +
+             `<span class="sd">±${v.sd.toFixed(2)}</span></td>`;
+    })));
+  }
+}
+
+function buildDecayTable() {
+  const tb = document.getElementById("decaytbody");
+  const best8 = Math.max(...DATA.decay_surface.map(r => r.coverage_at_8));
+  for (const r of DATA.decay_surface) {
+    const note = r.decay === 0 ? " <span class=\"sd\">t−1 only</span>"
+               : r.decay === 1 ? " <span class=\"sd\">equal vote</span>" : "";
+    const tr = document.createElement("tr");
+    const hi = Math.abs(r.coverage_at_8 - best8) < 1e-12;
+    tr.innerHTML = `<td class="mono">${r.decay.toFixed(3)}${note}</td>` +
+      [8, 12, 16].map(k => `<td class="num${k === 8 && hi ? " hi" : ""}">${fmt(r["coverage_at_" + k] * 100)}</td>`).join("");
+    tb.appendChild(tr);
+  }
+}
+
+/* ---------- chart: memory by depth (ordinal ramp) ---------- */
+const LAGS = ["t-1", "t-2", "t-4", "t-8"];
+const BANDS = [
+  { key: "early", label: "early · layers 1–13", color: "var(--depth-1)" },
+  { key: "mid",   label: "mid · layers 14–26",  color: "var(--depth-2)" },
+  { key: "late",  label: "late · layers 27–39", color: "var(--depth-3)" },
+];
+
+function drawMem() {
+  const W = 940, H = 340, M = { t: 16, r: 168, b: 48, l: 54 };
+  const IW = W - M.l - M.r, IH = H - M.t - M.b;
+  const svg = document.getElementById("memchart");
+  [...svg.querySelectorAll("g,rect,path,text,line,circle")].forEach(n => n.remove());
+  const g = el("g"); svg.appendChild(g);
+
+  const i8 = ki(8);
+  const YMAX = 50;
+  const xs = i => M.l + (i / (LAGS.length - 1)) * IW;
+  const ys = v => M.t + IH - (v / YMAX) * IH;
+
+  for (let v = 0; v <= YMAX; v += 10) {
+    g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: ys(v), y2: ys(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    const t = el("text", { x: M.l - 10, y: ys(v) + 4, "text-anchor": "end", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = v + "%"; g.appendChild(t);
+  }
+  LAGS.forEach((lag, i) => {
+    const t = el("text", { x: xs(i), y: M.t + IH + 22, "text-anchor": "middle", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = disp(lag); g.appendChild(t);
+  });
+  const ax = el("text", { x: M.l + IW / 2, y: H - 8, "text-anchor": "middle", fill: "var(--text-secondary)", "font-size": 12.5 });
+  ax.textContent = "lag — how many tokens back (log₂ spacing)"; g.appendChild(ax);
+  const ay = el("text", { x: 14, y: M.t + IH / 2, "text-anchor": "middle", fill: "var(--text-secondary)",
+                          "font-size": 12.5, transform: `rotate(-90 14 ${M.t + IH / 2})` });
+  ay.textContent = "coverage @ K=8"; g.appendChild(ay);
+
+  const py = ys(DATA.pooled["popularity"][i8]);
+  g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: py, y2: py, stroke: "var(--text-muted)",
+                             "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+  const pt = el("text", { x: M.l + IW + 8, y: py + 4, fill: "var(--text-muted)", "font-size": 11.5 });
+  pt.textContent = `popularity ${fmt(DATA.pooled["popularity"][i8])}%`; g.appendChild(pt);
+
+  for (const b of BANDS) {
+    const pts = LAGS.map((lag, i) => [xs(i), ys(DATA.thirds[lag][b.key][i8])]);
+    g.appendChild(el("path", {
+      d: "M" + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join("L"),
+      fill: "none", stroke: b.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round",
+    }));
+    for (const p of pts)
+      g.appendChild(el("circle", { cx: p[0], cy: p[1], r: 4.5, fill: b.color, stroke: "var(--surface-1)", "stroke-width": 2 }));
+    const last = DATA.thirds["t-8"][b.key][i8];
+    const lab = el("text", { x: M.l + IW + 8, y: ys(last) + 4, fill: "var(--text-primary)", "font-size": 12 });
+    lab.textContent = `${b.label.split(" · ")[0]} · ${fmt(last)}%`;
+    g.appendChild(lab);
+  }
+
+  const hit = el("rect", { x: M.l, y: M.t, width: IW, height: IH, fill: "transparent" });
+  svg.appendChild(hit);
+  const tip = document.getElementById("memtip");
+  hit.addEventListener("pointermove", ev => {
+    const r = svg.getBoundingClientRect();
+    const px = (ev.clientX - r.left) / r.width * W;
+    let i = Math.round((px - M.l) / IW * (LAGS.length - 1));
+    i = Math.max(0, Math.min(LAGS.length - 1, i));
+    tip.innerHTML = `<h4>${disp(LAGS[i])} · K=8</h4>` + BANDS.map(b =>
+      `<div class="row"><span class="l"><span class="swatch" style="background:${b.color}"></span>${b.label}</span>` +
+      `<span class="v">${fmt(DATA.thirds[LAGS[i]][b.key][i8])}%</span></div>`).join("");
+    tip.style.opacity = 1;
+    tip.style.left = Math.min(r.width - 200, Math.max(0, (xs(i) / W) * r.width + 14)) + "px";
+    tip.style.top = "14px";
+  });
+  hit.addEventListener("pointerleave", () => { tip.style.opacity = 0; });
+}
+
+/* ---------- chart: coverage by layer ---------- */
+const SERIES = [
+  { key: "popularity",           label: "Layer popularity",       color: "var(--series-1)", tag: "pop" },
+  { key: "cross-layer + history", label: "Cross-layer + history", color: "var(--series-2)", tag: "C+H" },
+  { key: "cross-layer (C)",      label: "Cross-layer (C)",        color: "var(--series-3)", tag: "C"   },
+  { key: "t-1 u t-2 u t-4 (priority)", label: "t−1 ∪ t−2 ∪ t−4", color: "var(--series-4)", tag: "∪" },
+  { key: "t-1",                  label: "t−1 alone",         color: "var(--series-5)", tag: "t1"  },
+];
+const W = 940, H = 430, M = { t: 14, r: 158, b: 46, l: 54 };
+const IW = W - M.l - M.r, IH = H - M.t - M.b;
+let YMAX = 60, K = 8;
+const shown = new Set(SERIES.map(s => s.key));
+const xs = L => M.l + (L - DATA.layers[0]) / (DATA.layers.at(-1) - DATA.layers[0]) * IW;
+const ys = v => M.t + IH - (v / YMAX) * IH;
+
+function yMaxFor(k) {
+  let m = 0;
+  for (const s of SERIES) if (shown.has(s.key)) for (const r of DATA.per_layer[s.key]) m = Math.max(m, r[k]);
+  return Math.max(20, Math.ceil((m + 2) / 10) * 10);
+}
+
+function draw() {
+  const svg = document.getElementById("chart");
+  [...svg.querySelectorAll("g,rect,path,text,line,circle")].forEach(n => n.remove());
+  const k = ki(K);
+  YMAX = yMaxFor(k);
+  const g = el("g"); svg.appendChild(g);
+
+  for (let v = 0; v <= YMAX; v += 10) {
+    g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: ys(v), y2: ys(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    const t = el("text", { x: M.l - 10, y: ys(v) + 4, "text-anchor": "end", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = v + "%"; g.appendChild(t);
+  }
+  for (const L of [1, 5, 10, 15, 20, 25, 30, 35, 39]) {
+    const t = el("text", { x: xs(L), y: M.t + IH + 22, "text-anchor": "middle", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = L; g.appendChild(t);
+  }
+  const ax = el("text", { x: M.l + IW / 2, y: H - 8, "text-anchor": "middle", fill: "var(--text-secondary)", "font-size": 12.5 });
+  ax.textContent = "layer"; g.appendChild(ax);
+  const ay = el("text", { x: 14, y: M.t + IH / 2, "text-anchor": "middle", fill: "var(--text-secondary)",
+                          "font-size": 12.5, transform: `rotate(-90 14 ${M.t + IH / 2})` });
+  ay.textContent = "expert prediction coverage"; g.appendChild(ay);
+
+  const ry = ys(chance(K));
+  g.appendChild(el("line", { x1: M.l, x2: M.l + IW, y1: ry, y2: ry, stroke: "var(--text-muted)",
+                             "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+  const rt = el("text", { x: M.l + IW + 8, y: ry + 4, fill: "var(--text-muted)", "font-size": 11.5 });
+  rt.textContent = `chance ${fmt(chance(K))}%`; g.appendChild(rt);
+
+  const ends = SERIES.filter(s => shown.has(s.key))
+    .map(s => ({ s, v: DATA.per_layer[s.key].at(-1)[k] }))
+    .sort((a, b) => b.v - a.v);
+  let lastY = -Infinity;
+  for (const e of ends) { e.y = Math.max(ys(e.v), lastY + 15); lastY = e.y; }
+
+  for (const s of SERIES) {
+    if (!shown.has(s.key)) continue;
+    const pts = DATA.per_layer[s.key].map((r, i) => [xs(DATA.layers[i]), ys(r[k])]);
+    g.appendChild(el("path", {
+      d: "M" + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join("L"),
+      fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round",
+    }));
+    const e = ends.find(x => x.s.key === s.key);
+    const lab = el("text", { x: M.l + IW + 8, y: e.y + 4, fill: "var(--text-primary)", "font-size": 12 });
+    lab.textContent = `${s.tag} · ${fmt(e.v)}%`;
+    g.appendChild(lab);
+    g.appendChild(el("line", { x1: M.l + IW, x2: M.l + IW + 5, y1: ys(e.v), y2: e.y, stroke: s.color, "stroke-width": 1.5 }));
+  }
+
+  const hover = el("g", { id: "hover", opacity: 0 });
+  hover.appendChild(el("line", { id: "cross", y1: M.t, y2: M.t + IH, stroke: "var(--border-strong)", "stroke-width": 1 }));
+  for (const s of SERIES) hover.appendChild(el("circle", { r: 4.5, fill: s.color, stroke: "var(--surface-1)",
+                                                          "stroke-width": 2, "data-k": s.key, opacity: 0 }));
+  svg.appendChild(hover);
+
+  const hit = el("rect", { x: M.l, y: M.t, width: IW, height: IH, fill: "transparent" });
+  svg.appendChild(hit);
+  hit.addEventListener("pointermove", ev => onMove(ev, svg, k));
+  hit.addEventListener("pointerleave", () => {
+    document.getElementById("hover").setAttribute("opacity", 0);
+    document.getElementById("tip").style.opacity = 0;
+  });
+}
+
+function onMove(ev, svg, k) {
+  const r = svg.getBoundingClientRect();
+  const px = (ev.clientX - r.left) / r.width * W;
+  let i = Math.round((px - M.l) / IW * (DATA.layers.length - 1));
+  i = Math.max(0, Math.min(DATA.layers.length - 1, i));
+  const L = DATA.layers[i], x = xs(L);
+
+  const hv = document.getElementById("hover");
+  hv.setAttribute("opacity", 1);
+  hv.querySelector("#cross").setAttribute("x1", x);
+  hv.querySelector("#cross").setAttribute("x2", x);
+  for (const c of hv.querySelectorAll("circle")) {
+    const key = c.getAttribute("data-k");
+    if (!shown.has(key)) { c.setAttribute("opacity", 0); continue; }
+    c.setAttribute("opacity", 1);
+    c.setAttribute("cx", x);
+    c.setAttribute("cy", ys(DATA.per_layer[key][i][k]));
+  }
+
+  const rows = SERIES.filter(s => shown.has(s.key))
+    .map(s => ({ s, v: DATA.per_layer[s.key][i][k] }))
+    .sort((a, b) => b.v - a.v);
+  const tip = document.getElementById("tip");
+  tip.innerHTML = `<h4>Layer ${L} · K=${K}</h4>` + rows.map(o =>
+    `<div class="row"><span class="l"><span class="swatch" style="background:${o.s.color}"></span>${o.s.label}</span>` +
+    `<span class="v">${fmt(o.v)}%</span></div>`).join("");
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(r.width - 200, Math.max(0, (x / W) * r.width + 14)) + "px";
+  tip.style.top = "14px";
+}
+
+/* ---------- chart: union gain by layer (bars) ---------- */
+function drawGain() {
+  const GW = 940, GH = 300, GM = { t: 16, r: 20, b: 46, l: 54 };
+  const IWg = GW - GM.l - GM.r, IHg = GH - GM.t - GM.b;
+  const svg = document.getElementById("gainchart");
+  [...svg.querySelectorAll("g,rect,path,text,line,circle")].forEach(n => n.remove());
+  const g = el("g"); svg.appendChild(g);
+
+  const k = ki(16);
+  const gain = DATA.layers.map((L, i) =>
+    DATA.per_layer["t-1 u t-2 u t-4 (priority)"][i][k] - DATA.per_layer["t-1"][i][k]);
+  const YM = Math.ceil(Math.max(...gain) / 2) * 2 + 2;
+  const yg = v => GM.t + IHg - (v / YM) * IHg;
+  const bw = IWg / DATA.layers.length;
+
+  for (let v = 0; v <= YM; v += 2) {
+    g.appendChild(el("line", { x1: GM.l, x2: GM.l + IWg, y1: yg(v), y2: yg(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    const t = el("text", { x: GM.l - 10, y: yg(v) + 4, "text-anchor": "end", fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = "+" + v; g.appendChild(t);
+  }
+  const ay = el("text", { x: 14, y: GM.t + IHg / 2, "text-anchor": "middle", fill: "var(--text-secondary)",
+                          "font-size": 12.5, transform: `rotate(-90 14 ${GM.t + IHg / 2})` });
+  ay.textContent = "coverage gained (pp)"; g.appendChild(ay);
+  const ax = el("text", { x: GM.l + IWg / 2, y: GH - 8, "text-anchor": "middle", fill: "var(--text-secondary)", "font-size": 12.5 });
+  ax.textContent = "layer"; g.appendChild(ax);
+
+  const tip = document.getElementById("gaintip");
+  DATA.layers.forEach((L, i) => {
+    const h = Math.max(1, GM.t + IHg - yg(gain[i]));
+    const x = GM.l + i * bw + 1;
+    const bar = el("rect", { x, y: yg(gain[i]), width: Math.max(1, bw - 2), height: h,
+                             fill: "var(--series-4)", rx: 3, ry: 3 });
+    g.appendChild(bar);
+    const hit = el("rect", { x: GM.l + i * bw, y: GM.t, width: bw, height: IHg, fill: "transparent" });
+    hit.addEventListener("pointerenter", () => {
+      bar.setAttribute("fill", "var(--series-2)");
+      tip.innerHTML = `<h4>Layer ${L} · K=16</h4>` +
+        `<div class="row"><span class="l">t−1 alone</span><span class="v">${fmt(DATA.per_layer["t-1"][i][k])}%</span></div>` +
+        `<div class="row"><span class="l">with t−2, t−4</span><span class="v">${fmt(DATA.per_layer["t-1 u t-2 u t-4 (priority)"][i][k])}%</span></div>` +
+        `<div class="row"><span class="l">gained</span><span class="v">${signed(gain[i])}pp</span></div>`;
+      tip.style.opacity = 1;
+      const r = svg.getBoundingClientRect();
+      tip.style.left = Math.min(r.width - 200, Math.max(0, (x / GW) * r.width + 14)) + "px";
+      tip.style.top = "14px";
+    });
+    hit.addEventListener("pointerleave", () => { bar.setAttribute("fill", "var(--series-4)"); tip.style.opacity = 0; });
+    g.appendChild(hit);
+  });
+
+  for (const L of [1, 5, 10, 15, 20, 25, 30, 35, 39]) {
+    const i = DATA.layers.indexOf(L);
+    const t = el("text", { x: GM.l + i * bw + bw / 2, y: GM.t + IHg + 22, "text-anchor": "middle",
+                           fill: "var(--text-muted)", "font-size": 12 });
+    t.textContent = L; g.appendChild(t);
+  }
+}
+
+/* ---------- controls ---------- */
+function buildControls() {
+  const seg = document.getElementById("kseg");
+  for (const k of REPORT) {
+    const b = document.createElement("button");
+    b.textContent = k;
+    b.setAttribute("aria-pressed", String(k === K));
+    b.onclick = () => {
+      K = k;
+      [...seg.children].forEach(c => c.setAttribute("aria-pressed", String(+c.textContent === K)));
+      draw();
+    };
+    seg.appendChild(b);
+  }
+  const lg = document.getElementById("legend");
+  for (const s of SERIES) {
+    const b = document.createElement("button");
+    b.setAttribute("aria-pressed", "true");
+    b.innerHTML = `<span class="swatch" style="background:${s.color}"></span>${s.label}`;
+    b.onclick = () => {
+      if (shown.has(s.key)) { if (shown.size === 1) return; shown.delete(s.key); }
+      else shown.add(s.key);
+      b.setAttribute("aria-pressed", String(shown.has(s.key)));
+      draw();
+    };
+    lg.appendChild(b);
+  }
+  const ml = document.getElementById("memlegend");
+  for (const b of BANDS) {
+    const s = document.createElement("span");
+    s.className = "static";
+    s.innerHTML = `<span class="swatch" style="background:${b.color}"></span>${b.label}`;
+    ml.appendChild(s);
+  }
+}
+
+document.getElementById("themetog").onclick = () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+};
+
+tiles();
+buildLagTable(); buildUnionTable(); buildPairTable(); buildDecayTable();
+buildControls(); drawMem(); draw(); drawGain();
+</script>
+</body>
+</html>
