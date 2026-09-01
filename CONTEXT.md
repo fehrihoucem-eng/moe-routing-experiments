@@ -120,3 +120,36 @@ _Avoid_: phase, fold, partition, subset
 A function of X that produces the input to one experiment. Experiments are
 defined as Transforms so that they share one capture.
 _Avoid_: feature, preprocessing, pipeline
+
+### Predicting the routing
+
+**Predictor**:
+A function from routing that is already known to a ranked list of Slots for a
+target (Token, Layer). Every Predictor names the same kind of thing, whether it
+is the crudest or the best, so none of them is privileged by its name.
+_Avoid_: model, estimator, baseline
+
+**Horizon**:
+How much a Predictor knows when it fires. `token` means everything about the
+previous Token, known before the current Token enters the model at all; `layer`
+means that plus the current Token's Experts at the Layer below. Two Predictors
+are only comparable within one Horizon, because the wider Horizon is strictly
+more information.
+_Avoid_: lookahead, context, window
+
+**Budget**:
+How many Slots a Predictor names, written K. Distinct from the Router's own 8,
+which is fixed by the model — a Budget below 8 cannot reach full Coverage no
+matter how good the Predictor is.
+_Avoid_: top-k, k
+
+**Coverage**:
+Of the 8 Experts the Router actually selected, the fraction a Predictor named.
+The one number a Predictor is judged on. Precision is `Coverage * 8 / K` and
+carries no separate information.
+_Avoid_: recall, hit rate, accuracy
+
+**Miss**:
+A selected Expert the Predictor did not name. The same measurement as Coverage,
+counted rather than expressed as a fraction: `Misses = 8 * (1 - Coverage)`.
+_Avoid_: error, failure, fault
