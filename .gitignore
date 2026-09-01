@@ -5,3 +5,6 @@ __pycache__/
 data/stores/
 data/traces/*.trace
 !tests/fixtures/*.trace
+*.egg-info/
+build/
+dist/

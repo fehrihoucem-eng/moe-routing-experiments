@@ -1,8 +1,0 @@
-numpy>=2.0
-pyarrow>=17
-
-[dev]
-pytest
-
-[torch]
-torch
